@@ -65,7 +65,9 @@ namespace PonscripterParser
 
             {   LexingMode.Function, new List<SemanticRegex>()
                 {
-                    
+                    new RString(),
+                    new RNumber(),
+                    new ROperator(),
                 }
             },
 
@@ -95,12 +97,9 @@ namespace PonscripterParser
             public abstract SemanticRegexResult DoMatch(string s, int startat, LexingMode currentLexingMode);
         }
 
-
-        public class RClickWait : SemanticRegex
+        public class SemanticRegexSimple : SemanticRegex
         {
-            public RClickWait() : base(@"\G@")
-            {
-            }
+            public SemanticRegexSimple(string regexPattern) : base(regexPattern) { }
 
             public override SemanticRegexResult DoMatch(string s, int startat, LexingMode currentLexingMode)
             {
@@ -110,6 +109,28 @@ namespace PonscripterParser
             }
         }
 
+        public class RClickWait : SemanticRegexSimple
+        {
+            public RClickWait() : base(@"\G@") { }
+        }
+
+        public class RString : SemanticRegexSimple
+        {
+            //this is just \G"[^"]+"
+            public RString() : base(@"\G""[^""]+""") { }
+        }
+
+        public class RNumber : SemanticRegexSimple
+        {
+            //this is just \G"[^"]+"
+            public RNumber() : base(@"\G\d+") { }
+        }
+
+        public class ROperator : SemanticRegexSimple
+        {
+            //this is just \G"[^"]+"
+            public ROperator() : base(@"\G[+-\/\\]") { }
+        }
 
         public class RFunction : SemanticRegex
         {
@@ -159,13 +180,15 @@ namespace PonscripterParser
 
         static void ProcessSingleLine(string line)
         {
-            Console.WriteLine($"\nBegin processing line {line}");
+            line = line.TrimEnd();
+
+            Console.WriteLine($"\nBegin processing line [{line}]");
 
             LexingMode lexingMode = LexingMode.Normal;
             int startat = 0;
 
 
-            for(int iteration = 0; line.Length > 0 && iteration < 1000; iteration++)
+            for(int iteration = 0; startat < line.Length && iteration < 1000; iteration++)
             {
                 bool debug_substitution_made = false;
 
@@ -201,9 +224,13 @@ namespace PonscripterParser
             }
 
 
-            if (startat != line.Length - 1)
+            if (startat < line.Length)
             {
                 Console.WriteLine("WARNING: line did not match to completion!");
+            }
+            else
+            {
+                Console.WriteLine("Successfully Parsed line.");
             }
         }
 
