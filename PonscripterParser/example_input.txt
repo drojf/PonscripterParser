@@ -11,6 +11,6 @@ al;sdkjf;alsk@j;df\ ;comment
 @alsdjfa;sld@asdl;kfj@asldk@/
     @asdlfkjasl;dfkj
 
-dwave 0,5, "asdfasf"
+dwave 0,5, "asdfasf" : dwave 0,(5 + 5) * 10 / 2, "asdfasf"
 
 dwave 0,5 + 5 * 10, "asdfasf" ;subexpressions allowed? only for function arguments...or just blindly match + - etc. in function arg?

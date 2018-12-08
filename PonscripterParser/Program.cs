@@ -60,14 +60,18 @@ namespace PonscripterParser
                 {
                     new RClickWait(),
                     new RFunction(),
+                    new RColon(), //ignore repeated colons
                 }
             },
 
             {   LexingMode.Function, new List<SemanticRegex>()
                 {
                     new RString(),
+                    new RComma(),
                     new RNumber(),
                     new ROperator(),
+                    new RBracket(),
+                    new RColon(),   //-> normal mode
                 }
             },
 
@@ -122,14 +126,35 @@ namespace PonscripterParser
 
         public class RNumber : SemanticRegexSimple
         {
-            //this is just \G"[^"]+"
             public RNumber() : base(@"\G\d+") { }
         }
-
+        
         public class ROperator : SemanticRegexSimple
         {
-            //this is just \G"[^"]+"
-            public ROperator() : base(@"\G[+-\/\\]") { }
+            public ROperator() : base(@"\G[\+\-\*\/]") { }
+        }
+
+        public class RBracket : SemanticRegexSimple
+        {
+            public RBracket() : base(@"\G[\(\)]") { }
+        }
+
+        public class RComma : SemanticRegexSimple
+        {
+            public RComma() : base(@"\G,") { }
+        }
+
+        public class RColon : SemanticRegex
+        {
+            public RColon() : base(@"\G:") { }
+
+            public override SemanticRegexResult DoMatch(string s, int startat, LexingMode currentLexingMode)
+            {
+                Match m = pattern.Match(s, startat);
+
+                //TODO: eliminate currentlexinmode from these functions? maybe can specify it externally? 
+                return new SemanticRegexResult(m.Value, m.Success, m.Success ? LexingMode.Normal : currentLexingMode);
+            }
         }
 
         public class RFunction : SemanticRegex
