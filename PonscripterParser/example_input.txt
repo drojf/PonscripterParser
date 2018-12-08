@@ -1,0 +1,12 @@
+  langjptest asdf
+ langjp asdf
+    langjp:test asdf
+dsafljsdflkajdfsdklfjlskdfjldsjflks  
+  
+lsp 0, ":ba;test" ;howtoparse
+    
+	teasdfe@efjalksdj/ ;comment
+al;sdkjf;alsk@j;df\ ;comment
+
+@alsdjfa;sld@asdl;kfj@asldk@/
+    @asdlfkjasl;dfkj
