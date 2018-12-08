@@ -10,3 +10,5 @@ al;sdkjf;alsk@j;df\ ;comment
 
 @alsdjfa;sld@asdl;kfj@asldk@/
     @asdlfkjasl;dfkj
+
+dwave 0,5, "asdfasf"

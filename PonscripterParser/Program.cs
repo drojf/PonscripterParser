@@ -49,6 +49,11 @@ namespace PonscripterParser
             new NamedRegex(MatchType.whitespace_before_newline,       @"\G[\s\x10]+$", RegexOptions.IgnoreCase),
         };*/
 
+        public static HashSet<string> functionNames = new HashSet<string>() {
+            "lsp",
+            "dwave",
+        };
+
         public static Dictionary<LexingMode, List<SemanticRegex>> lexingmodeToMatches = new Dictionary<LexingMode, List<SemanticRegex>>
         {
             {   LexingMode.Normal, new List<SemanticRegex>()
@@ -87,9 +92,7 @@ namespace PonscripterParser
                 this.pattern = new Regex(regexAsString);
             }
 
-            public abstract Match DoMatch(string s, int startat);
-
-            public abstract LexingMode UpdateLexingMode(LexingMode currentMode);
+            public abstract SemanticRegexResult DoMatch(string s, int startat, LexingMode currentLexingMode);
         }
 
 
@@ -99,14 +102,11 @@ namespace PonscripterParser
             {
             }
 
-            public override Match DoMatch(string s, int startat)
+            public override SemanticRegexResult DoMatch(string s, int startat, LexingMode currentLexingMode)
             {
-                return pattern.Match(s, startat);
-            }
+                Match m = pattern.Match(s, startat);
 
-            public override LexingMode UpdateLexingMode(LexingMode currentMode)
-            {
-                return LexingMode.Normal;
+                return new SemanticRegexResult(m.Value, m.Success, currentLexingMode);
             }
         }
 
@@ -117,16 +117,34 @@ namespace PonscripterParser
             {
             }
 
-            public override Match DoMatch(string s, int startat)
+            public override SemanticRegexResult DoMatch(string s, int startat, LexingMode currentLexingMode)
             {
-                return pattern.Match(s, startat);
+                Match matchResult = pattern.Match(s, startat);
+                if(matchResult.Success && functionNames.Contains(matchResult.Value))
+                {
+                    return new SemanticRegexResult(matchResult.Value, true, LexingMode.Function);
+                }
+                else
+                {
+                    Console.WriteLine($"{matchResult.Value} looks like a function, but not found!");
+                    return new SemanticRegexResult(matchResult.Value, false, currentLexingMode);
+                }                
             }
+        }
 
-            public override LexingMode UpdateLexingMode(LexingMode currentMode)
+        public class SemanticRegexResult
+        {
+            //public Match match;
+            public LexingMode newLexingMode;
+            public string token;
+            public bool success;
+
+            public SemanticRegexResult(string token, bool sucess, LexingMode newLexingMode)//Match m, LexingMode l, bool sucess)
             {
-                //TODO: - if function is known function -> function
-                //otherwise -> text, and emit error
-                return LexingMode.Function;
+                //this.match = m;
+                this.token = token;
+                this.newLexingMode = newLexingMode;
+                this.success = sucess;
             }
         }
 
@@ -141,13 +159,16 @@ namespace PonscripterParser
 
         static void ProcessSingleLine(string line)
         {
-            Console.WriteLine($"Begin processing line {line}");
+            Console.WriteLine($"\nBegin processing line {line}");
 
             LexingMode lexingMode = LexingMode.Normal;
             int startat = 0;
 
+
             for(int iteration = 0; line.Length > 0 && iteration < 1000; iteration++)
             {
+                bool debug_substitution_made = false;
+
                 //skip any whitespace at start of line
                 Match whitespace_match = WHITESPACE_REGEX.Match(line, startat);
                 if(whitespace_match.Success)
@@ -159,17 +180,23 @@ namespace PonscripterParser
                 //try all matches
                 foreach (SemanticRegex pattern in lexingmodeToMatches[lexingMode])
                 {
-                    Match m = pattern.DoMatch(line, startat);
-                    if (m.Success)
+                    SemanticRegexResult result = pattern.DoMatch(line, startat, lexingMode);
+                    if (result.success)
                     {
-                        Console.Write($"Matched {m.Groups[0]} ");
-                        startat += m.Length;
+                        debug_substitution_made = true;
+                        Console.Write($"Matched [{result.token}] ");
+                        startat += result.token.Length;
 
-                        lexingMode = pattern.UpdateLexingMode(lexingMode);
-                        Console.Write($"Lexing Mode: {lexingMode}");
+                        lexingMode = result.newLexingMode;
+                        Console.Write($"Mode Changed To [{lexingMode}]");
                         Console.WriteLine();
                         break;
                     }
+                }
+
+                if(!debug_substitution_made)
+                {
+                    break;
                 }
             }
 
