@@ -103,6 +103,8 @@ namespace PonscripterParser
                 Match whitespace_match = WHITESPACE_REGEX.Match(line, startat);
                 if(whitespace_match.Success)
                 {
+                    tokens.Add(new Token(TokenType.WhiteSpace, whitespace_match.Value));
+
                     //Console.WriteLine($"Skipping whitespace [{whitespace_match.Groups[0]}]");
                     startat += whitespace_match.Length;
                 }

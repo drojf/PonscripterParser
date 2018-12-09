@@ -18,5 +18,6 @@ namespace PonscripterParser
         Operator,
         Comma,
         Alias, //numAlias, stringalias etc
+        WhiteSpace, //there is no RegexDef for this - it's just in the main parsing loop
     }
 }
