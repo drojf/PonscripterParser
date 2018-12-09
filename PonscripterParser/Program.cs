@@ -140,8 +140,8 @@ namespace PonscripterParser
             public override SemanticRegexResult DoMatch(string s, int startat, LexingMode currentLexingMode)
             {
                 Match m = pattern.Match(s, startat);
-
-                return new SemanticRegexResult(tokenType, m.Value, m.Success, currentLexingMode);
+                
+                return m.Success ? new SemanticRegexResult(tokenType, m.Value, currentLexingMode) : null;
             }
         }
 
@@ -183,9 +183,7 @@ namespace PonscripterParser
             public override SemanticRegexResult DoMatch(string s, int startat, LexingMode currentLexingMode)
             {
                 Match m = pattern.Match(s, startat);
-
-                //TODO: eliminate currentlexinmode from these functions? maybe can specify it externally? 
-                return new SemanticRegexResult(TokenType.Colon, m.Value, m.Success, m.Success ? LexingMode.Normal : currentLexingMode);
+                return m.Success ? new SemanticRegexResult(TokenType.Colon, m.Value, LexingMode.Normal) : null;
             }
         }
 
@@ -198,33 +196,20 @@ namespace PonscripterParser
             //for now, the caller should always decide whether to change lexing mode, not in the calee
             public override SemanticRegexResult DoMatch(string s, int startat, LexingMode currentLexingMode)
             {
-                Match matchResult = pattern.Match(s, startat);
-                return new SemanticRegexResult(TokenType.FnCall, matchResult.Value, true, LexingMode.Function);
-                /*if(matchResult.Success && functionNames.Contains(matchResult.Value))
-                {
-                    return new SemanticRegexResult(matchResult.Value, true, LexingMode.Function);
-                }
-                else
-                {
-                    Console.WriteLine($"{matchResult.Value} looks like a function, but not found!");
-                    return new SemanticRegexResult(matchResult.Value, false, currentLexingMode);
-                }*/
+                Match m = pattern.Match(s, startat);
+                return m.Success ? new SemanticRegexResult(TokenType.FnCall, m.Value, LexingMode.Function) : null;
             }
         }
 
         public class SemanticRegexResult
         {
-            //public Match match;
             public LexingMode newLexingMode;
             public Token token;
-            public bool success;
 
-            public SemanticRegexResult(TokenType token, string tokenString, bool sucess, LexingMode newLexingMode)//Match m, LexingMode l, bool sucess)
+            public SemanticRegexResult(TokenType token, string tokenString, LexingMode newLexingMode)//Match m, LexingMode l, bool sucess)
             {
-                //this.match = m;
                 this.token = new Token(token, tokenString);
                 this.newLexingMode = newLexingMode;
-                this.success = sucess;
             }
         }
 
@@ -264,7 +249,7 @@ namespace PonscripterParser
                 foreach (SemanticRegex pattern in lexingmodeToMatches[lexingMode])
                 {
                     SemanticRegexResult result = pattern.DoMatch(line, startat, lexingMode);
-                    if (result.success)
+                    if (result != null)
                     {
                         debug_substitution_made = true;
                         Console.Write($"Matched {result.token} ");
