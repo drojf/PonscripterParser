@@ -1,3 +1,4 @@
+	getparam $witchh11,$witchh12,%witchh13,%witchh14
   langjptest asdf
  langjp asdf
     langjp:test asdf
@@ -16,12 +17,15 @@ dwave 0,5, "asdfasf" : dwave 0,(5 + 5) * 10 / 2, "asdfasf"
 dwave 0,5 + 5 * 10, "asdfasf" ;subexpressions allowed? only for function arguments...or just blindly match + - etc. in function arg?
 
 
+
+
 langjp:dwave_jp 0, mar_1e134:「うー？」\
 langen:dwave_eng 0, mar_1e134:^"Uu-?"^\
 langjp　譲治の兄貴は一度腰を上げると、ポケットをまさぐる。@
 langjp:dwave_jp 0, geo_1e112:「これが、この薔薇の目印だよ。@:dwave_jp 0, geo_1e113:あとでお水とかをあげに来てごらん。@:dwave_jp 0, geo_1e114:薔薇さんもきっと喜ぶと思うよ。」@
 langen:dwave_eng 0, geo_1e112:^"Let's mark it with this.^@:dwave_eng 0, geo_1e113:^  Later on, you can come and give it some water.^@:dwave_eng 0, geo_1e114:^  I'm sure Mr. Rose will be happy."^@
 
+test_1_thing 1,2,3
 
 *set_oldnew_bg
 	getparam $witchh11,$witchh12,%witchh13,%witchh14
@@ -46,3 +50,10 @@ langen:dwave_eng 0, geo_1e112:^"Let's mark it with this.^@:dwave_eng 0, geo_1e11
 		bg $witchh12,%witchh14
 	~
 return
+
+langen:dwave_eng 0, geo_1e788:^asdfafsd...They probably had some kind of w^eapon, a dev /This: ice^ that^ ca:n shoot or\ pou^nd in those `icepicks'.@dwave_eng 0, geo_1e789^もももももも  That handle was too short to be driven in that deeply by a human's strength alone."\ ;kajshldksajhd
+
+in the below line, the first / and comment are treated as text! hte last / is treated as a valid 'don't add newline' command.
+langen:dwave_eng 0, geo_1e788:^asdfafsd...They probably had some kind n that deeply by a human's strength alone."/ ;kajshldksajhd /
+
+langen:dwave_eng 0, geo_1e788:^asdfafsd...They probably had some kind of w@dwave_eng 0, geo_1e789^もももももも  That handle was too short to be driven in that deep/
