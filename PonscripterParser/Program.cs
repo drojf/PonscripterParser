@@ -49,6 +49,16 @@ namespace PonscripterParser
             new NamedRegex(MatchType.whitespace_before_newline,       @"\G[\s\x10]+$", RegexOptions.IgnoreCase),
         };*/
 
+        public enum TokenType
+        {
+            AtSymbol,
+            FnCall,
+            Colon,
+            Literal,
+            Operator,
+            Comma,
+        }
+
         public static HashSet<string> functionNames = new HashSet<string>() {
             "lsp",
             "dwave",
@@ -59,7 +69,7 @@ namespace PonscripterParser
             {   LexingMode.Normal, new List<SemanticRegex>()
                 {
                     new RClickWait(),
-                    new RFunction(),
+                    new RFunctionCall(),
                     new RColon(), //ignore repeated colons
                 }
             },
@@ -89,6 +99,23 @@ namespace PonscripterParser
 
         };
 
+        public class Token
+        {
+            public TokenType tokenType;
+            public string tokenString;
+
+            public Token(TokenType tokenType, string tokenValue)
+            {
+                this.tokenType = tokenType;
+                this.tokenString = tokenValue;
+            }
+
+            public override string ToString()
+            {
+                return $"{tokenType, 8}: [{tokenString}]";
+            }
+        }
+
         public abstract class SemanticRegex
         {
             protected Regex pattern;
@@ -103,45 +130,50 @@ namespace PonscripterParser
 
         public class SemanticRegexSimple : SemanticRegex
         {
-            public SemanticRegexSimple(string regexPattern) : base(regexPattern) { }
+            readonly TokenType tokenType;
+
+            public SemanticRegexSimple(string regexPattern, TokenType tokenType) : base(regexPattern)
+            {
+                this.tokenType = tokenType;
+            }
 
             public override SemanticRegexResult DoMatch(string s, int startat, LexingMode currentLexingMode)
             {
                 Match m = pattern.Match(s, startat);
 
-                return new SemanticRegexResult(m.Value, m.Success, currentLexingMode);
+                return new SemanticRegexResult(tokenType, m.Value, m.Success, currentLexingMode);
             }
         }
 
         public class RClickWait : SemanticRegexSimple
         {
-            public RClickWait() : base(@"\G@") { }
+            public RClickWait() : base(@"\G@", TokenType.AtSymbol) { }
         }
 
         public class RString : SemanticRegexSimple
         {
             //this is just \G"[^"]+"
-            public RString() : base(@"\G""[^""]+""") { }
+            public RString() : base(@"\G""[^""]+""", TokenType.Literal) { }
         }
 
         public class RNumber : SemanticRegexSimple
         {
-            public RNumber() : base(@"\G\d+") { }
+            public RNumber() : base(@"\G\d+", TokenType.Literal) { }
         }
         
         public class ROperator : SemanticRegexSimple
         {
-            public ROperator() : base(@"\G[\+\-\*\/]") { }
+            public ROperator() : base(@"\G[\+\-\*\/]", TokenType.Operator) { }
         }
 
         public class RBracket : SemanticRegexSimple
         {
-            public RBracket() : base(@"\G[\(\)]") { }
+            public RBracket() : base(@"\G[\(\)]", TokenType.Colon) { }
         }
 
         public class RComma : SemanticRegexSimple
         {
-            public RComma() : base(@"\G,") { }
+            public RComma() : base(@"\G,", TokenType.Comma) { }
         }
 
         public class RColon : SemanticRegex
@@ -153,20 +185,22 @@ namespace PonscripterParser
                 Match m = pattern.Match(s, startat);
 
                 //TODO: eliminate currentlexinmode from these functions? maybe can specify it externally? 
-                return new SemanticRegexResult(m.Value, m.Success, m.Success ? LexingMode.Normal : currentLexingMode);
+                return new SemanticRegexResult(TokenType.Colon, m.Value, m.Success, m.Success ? LexingMode.Normal : currentLexingMode);
             }
         }
 
-        public class RFunction : SemanticRegex
+        public class RFunctionCall : SemanticRegex
         {
-            public RFunction() : base(@"\G[!a-zA-Z_]+")
+            public RFunctionCall() : base(@"\G[!a-zA-Z_]+")
             {
             }
 
+            //for now, the caller should always decide whether to change lexing mode, not in the calee
             public override SemanticRegexResult DoMatch(string s, int startat, LexingMode currentLexingMode)
             {
                 Match matchResult = pattern.Match(s, startat);
-                if(matchResult.Success && functionNames.Contains(matchResult.Value))
+                return new SemanticRegexResult(TokenType.FnCall, matchResult.Value, true, LexingMode.Function);
+                /*if(matchResult.Success && functionNames.Contains(matchResult.Value))
                 {
                     return new SemanticRegexResult(matchResult.Value, true, LexingMode.Function);
                 }
@@ -174,7 +208,7 @@ namespace PonscripterParser
                 {
                     Console.WriteLine($"{matchResult.Value} looks like a function, but not found!");
                     return new SemanticRegexResult(matchResult.Value, false, currentLexingMode);
-                }                
+                }*/
             }
         }
 
@@ -182,13 +216,13 @@ namespace PonscripterParser
         {
             //public Match match;
             public LexingMode newLexingMode;
-            public string token;
+            public Token token;
             public bool success;
 
-            public SemanticRegexResult(string token, bool sucess, LexingMode newLexingMode)//Match m, LexingMode l, bool sucess)
+            public SemanticRegexResult(TokenType token, string tokenString, bool sucess, LexingMode newLexingMode)//Match m, LexingMode l, bool sucess)
             {
                 //this.match = m;
-                this.token = token;
+                this.token = new Token(token, tokenString);
                 this.newLexingMode = newLexingMode;
                 this.success = sucess;
             }
@@ -212,6 +246,7 @@ namespace PonscripterParser
             LexingMode lexingMode = LexingMode.Normal;
             int startat = 0;
 
+            List<Token> tokens = new List<Token>();
 
             for(int iteration = 0; startat < line.Length && iteration < 1000; iteration++)
             {
@@ -232,8 +267,9 @@ namespace PonscripterParser
                     if (result.success)
                     {
                         debug_substitution_made = true;
-                        Console.Write($"Matched [{result.token}] ");
-                        startat += result.token.Length;
+                        Console.Write($"Matched {result.token} ");
+                        startat += result.token.tokenString.Length;
+                        tokens.Add(result.token);
 
                         lexingMode = result.newLexingMode;
                         Console.Write($"Mode Changed To [{lexingMode}]");
@@ -251,12 +287,14 @@ namespace PonscripterParser
 
             if (startat < line.Length)
             {
-                Console.WriteLine("WARNING: line did not match to completion!");
+                Console.Write("WARNING: line did not match to completion!");
             }
             else
             {
-                Console.WriteLine("Successfully Parsed line.");
+                Console.Write($"Successfully Parsed line");
             }
+
+            Console.WriteLine($" Got {tokens.Count} Tokens");
         }
 
         static void Main(string[] args)

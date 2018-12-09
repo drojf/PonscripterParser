@@ -14,3 +14,35 @@ al;sdkjf;alsk@j;df\ ;comment
 dwave 0,5, "asdfasf" : dwave 0,(5 + 5) * 10 / 2, "asdfasf"
 
 dwave 0,5 + 5 * 10, "asdfasf" ;subexpressions allowed? only for function arguments...or just blindly match + - etc. in function arg?
+
+
+langjp:dwave_jp 0, mar_1e134:「うー？」\
+langen:dwave_eng 0, mar_1e134:^"Uu-?"^\
+langjp　譲治の兄貴は一度腰を上げると、ポケットをまさぐる。@
+langjp:dwave_jp 0, geo_1e112:「これが、この薔薇の目印だよ。@:dwave_jp 0, geo_1e113:あとでお水とかをあげに来てごらん。@:dwave_jp 0, geo_1e114:薔薇さんもきっと喜ぶと思うよ。」@
+langen:dwave_eng 0, geo_1e112:^"Let's mark it with this.^@:dwave_eng 0, geo_1e113:^  Later on, you can come and give it some water.^@:dwave_eng 0, geo_1e114:^  I'm sure Mr. Rose will be happy."^@
+
+
+*set_oldnew_bg
+	getparam $witchh11,$witchh12,%witchh13,%witchh14
+	
+	mov %show_cgs,1
+
+	mov %witchh15,1
+	if %witchh13 = 0 mov %witchh15,0
+
+	notif %show_cgs = 1 jumpf
+	mov %hide_new_sprites,%witchh15
+
+	mov %oldnew_bg,1
+	mov $oldnew_bg,$witchh11
+	mov $oldnew_bg_old,$witchh12
+
+	gosub *displayOldNewBg
+	if %witchh13 = 2 print 99,2000,"breakup.dll/lrp"
+	notif %witchh13 = 2 print %witchh14
+	~
+	if %show_cgs = 1 jumpf
+		bg $witchh12,%witchh14
+	~
+return
