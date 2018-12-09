@@ -284,6 +284,10 @@ namespace PonscripterParser
 
         static void Main(string[] args)
         {
+            //allow UTF-8 characters to be shown in console
+            Console.OutputEncoding = Encoding.UTF8;
+
+
             {
                 const string script_name = @"example_input.txt";
 
