@@ -41,7 +41,9 @@ namespace PonscripterParser
         public static NamedRegex R_NUMERIC_VARIABLE = new NamedRegex(new Regex(@"\G\%" + RPatterns.IDENTIFIER_PATTERN), TokenType.NumericVar);
         public static NamedRegex R_COLON = new NamedRegex(new Regex(@"\G:"), TokenType.Colon);
         public static NamedRegex R_HAT = new NamedRegex(new Regex(@"\G\^"), TokenType.Hat);
-        public static NamedRegex R_FUNCTION_CALL = new NamedRegex(new Regex(@"\G[!a-zA-Z_]+[0-9!a-zA-Z_]*"), TokenType.FnCall);
+        //public static NamedRegex R_FUNCTION_CALL = new NamedRegex(new Regex(@"\G[!a-zA-Z_]+[0-9!a-zA-Z_]*"), TokenType.FnCall);
+
+        public static Regex FUNCTION_CALL_REGEX = new Regex(@"\G[!a-zA-Z_]+[0-9!a-zA-Z_]*");
         /*public static readonly Regex langEnAtStartOfLine = new Regex(@"^\s*langen", RegexOptions.IgnoreCase);
 
         //NOTE: use https://regex101.com/ for testing/debugging these regexes (or rewrite using another type of pattern matching library)
@@ -76,26 +78,80 @@ namespace PonscripterParser
             //whitespace at end of line. NOTE: the game ignores this, so nothing is emitted
             new NamedRegex(MatchType.whitespace_before_newline,       @"\G[\s\x10]+$", RegexOptions.IgnoreCase),
         };*/
+        public static Dictionary<string, int> functionNames = new Dictionary<string, int>() {
+            { "lsp", 3 },
+            { "dwave", 2 },
+            { "langen", 0 },
+            {"langjp", 0 },
+            {"getparam", -1 },  //-1 indicates varags
+            //later these functions should be populated dynamically by scanning function defs!
+            {"dwave_eng", 2 },
+        };
 
-        
         public static SemanticRegexResult SemanticRegexResultOrNull(NamedRegex nregex, string s, int startat, LexingMode newLexingMode)
         {
             Match m = nregex.regex.Match(s, startat);
             return m.Success ? new SemanticRegexResult(nregex.tokenType, m.Value, newLexingMode) : null;
         }
 
+        //check for a function call. go back to normal mode if function has 0 arguments, otherwise go to function mode
+        public static SemanticRegexResult CheckFunctionCall(string s, int startat)
+        {
+            Match m = FUNCTION_CALL_REGEX.Match(s, startat);
+
+            bool found = functionNames.TryGetValue(m.Value, out int value);
+
+            if (found)
+            {
+                //if the function takes no arguments, immediately transition to normal mode
+                return new SemanticRegexResult(TokenType.FnCall, m.Value, value == 0 ? LexingMode.Normal : LexingMode.FunctionStart);
+            }
+            else
+            {
+                Console.WriteLine($"WARNING: [{m.Value}] looks like a function, but not found. Ignoring.");
+                return null;
+            }
+        }
+
         public static SemanticRegexResult NormalModeMatch(string s, int startat)
         {
-            return
-                   SemanticRegexResultOrNull(R_CLICK_WAIT, s, startat, LexingMode.Normal)
-                ?? SemanticRegexResultOrNull(R_PAGE_WAIT, s, startat, LexingMode.Normal)
-                ?? SemanticRegexResultOrNull(R_IGNORE_NEW_LINE, s, startat, LexingMode.Normal)
-                ?? SemanticRegexResultOrNull(R_IGNORE_NEW_LINE, s, startat, LexingMode.Normal)
-                ?? SemanticRegexResultOrNull(R_COLON, s, startat, LexingMode.Normal)
-                ?? SemanticRegexResultOrNull(R_FUNCTION_CALL, s, startat, LexingMode.ExpressionStart)
-                ?? SemanticRegexResultOrNull(R_HAT, s, startat, LexingMode.Text)
-                ?? SemanticRegexResultOrNull(R_TEXT, s, startat, LexingMode.Normal)
-                ?? null;
+            SemanticRegexResult result =
+                SemanticRegexResultOrNull(R_CLICK_WAIT, s, startat, LexingMode.Normal)
+            ?? SemanticRegexResultOrNull(R_PAGE_WAIT, s, startat, LexingMode.Normal)
+            ?? SemanticRegexResultOrNull(R_IGNORE_NEW_LINE, s, startat, LexingMode.Normal)
+            ?? SemanticRegexResultOrNull(R_COLON, s, startat, LexingMode.Normal)
+            ?? CheckFunctionCall(s, startat)
+            ?? SemanticRegexResultOrNull(R_HAT, s, startat, LexingMode.Text)
+            ?? SemanticRegexResultOrNull(R_TEXT, s, startat, LexingMode.Normal);
+
+            return result ?? SemanticRegexResult.FailureAndTerminate();
+        }
+
+        public static SemanticRegexResult FunctionNotExpression(string s, int startat)
+        {
+            SemanticRegexResult nonOperatorResult =
+                SemanticRegexResultOrNull(R_STRING, s, startat, LexingMode.FunctionStart) ??
+                SemanticRegexResultOrNull(R_NUMBER, s, startat, LexingMode.FunctionStart) ??
+                SemanticRegexResultOrNull(R_ALIAS, s, startat, LexingMode.FunctionStart) ??
+                SemanticRegexResultOrNull(R_STRING_VARIABLE, s, startat, LexingMode.FunctionStart) ??
+                SemanticRegexResultOrNull(R_NUMERIC_VARIABLE, s, startat, LexingMode.FunctionStart);
+
+            return nonOperatorResult ?? SemanticRegexResult.FailureAndTerminate();
+        }
+
+        public static SemanticRegexResult OperatorOrComma(string s, int startat)
+        {
+            SemanticRegexResult operatorResult =
+                SemanticRegexResultOrNull(R_OPERATOR, s, startat, LexingMode.FunctionStart) ??
+                SemanticRegexResultOrNull(R_COMMA, s, startat, LexingMode.FunctionStart);
+
+            return operatorResult ?? SemanticRegexResult.FailureAndChangeState(LexingMode.Normal);   
+        }
+
+        public static SemanticRegexResult TextModeMatch(string s, int startat)
+        {
+            SemanticRegexResult operatorResult = SemanticRegexResultOrNull(R_TEXT, s, startat, LexingMode.Normal);
+            return operatorResult ?? SemanticRegexResult.FailureAndTerminate();
         }
 
         public static Dictionary<LexingMode, List<SemanticRegex>> lexingmodeToMatches = new Dictionary<LexingMode, List<SemanticRegex>>
@@ -113,7 +169,7 @@ namespace PonscripterParser
                 }
             },
 
-            {   LexingMode.ExpressionStart, new List<SemanticRegex>()
+            {   LexingMode.FunctionStart, new List<SemanticRegex>()
                 {
                     new RString(), //can't be
                     new RComma(), //can be followed by hat

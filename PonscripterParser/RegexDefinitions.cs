@@ -145,7 +145,7 @@ namespace PonscripterParser
                 if (found)
                 {
                     //if the function takes no arguments, immediately transition to normal mode
-                    return new SemanticRegexResult(TokenType.FnCall, m.Value, value == 0 ? LexingMode.Normal : LexingMode.ExpressionStart);
+                    return new SemanticRegexResult(TokenType.FnCall, m.Value, value == 0 ? LexingMode.Normal : LexingMode.FunctionStart);
                 }
                 else
                 {
