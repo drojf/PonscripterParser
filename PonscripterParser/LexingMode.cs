@@ -10,6 +10,7 @@ namespace PonscripterParser
     {
         Normal,
         Text,
-        Function,
+        ExpressionStart,
+        ArgOperator,
     }
 }

@@ -7,6 +7,10 @@ using System.Threading.Tasks;
 
 namespace PonscripterParser
 {
+    public class RPatterns
+    {
+        public const string IDENTIFIER_PATTERN = @"[a-zA-Z_]+[0-9a-zA-Z_]*";
+    }
     public class RClickWait : SemanticRegexChangeMode
     {
         public RClickWait() : base(@"\G@", TokenType.ClickWait, LexingMode.Normal) { }
@@ -72,7 +76,22 @@ namespace PonscripterParser
 
     public class RAlias : SemanticRegexSameMode
     {
-        public RAlias() : base(@"\G[a-zA-Z_]+[0-9a-zA-Z_]*", TokenType.Alias) { }
+        public RAlias() : base(@"\G" + RPatterns.IDENTIFIER_PATTERN, TokenType.Alias) { }
+    }
+
+    public class RLabel : SemanticRegexSameMode
+    {
+        public RLabel() : base(@"\G\*" + RPatterns.IDENTIFIER_PATTERN, TokenType.Alias) { }
+    }
+
+    public class RStringVariable : SemanticRegexSameMode
+    {
+        public RStringVariable() : base(@"\G\$" + RPatterns.IDENTIFIER_PATTERN, TokenType.StringVar) { }
+    }
+
+    public class RNumericVariable : SemanticRegexSameMode
+    {
+        public RNumericVariable() : base(@"\G\%" + RPatterns.IDENTIFIER_PATTERN, TokenType.NumericVar) { }
     }
 
     public class RColon : SemanticRegex
@@ -99,14 +118,14 @@ namespace PonscripterParser
 
     public class RFunctionCall : SemanticRegex
     {
-        public static HashSet<string> functionNames = new HashSet<string>() {
-            "lsp",
-            "dwave",
-            "langen",
-            "langjp",
-
+        public static Dictionary<string, int> functionNames = new Dictionary<string, int>() {
+            { "lsp", 3 },
+            { "dwave", 2 },
+            { "langen", 0 },
+            {"langjp", 0 },
+            {"getparam", -1 },  //-1 indicates varags
             //later these functions should be populated dynamically by scanning function defs!
-            "dwave_eng"
+            {"dwave_eng", 2 },
         };
 
         public RFunctionCall() : base(@"\G[!a-zA-Z_]+[0-9!a-zA-Z_]*")
@@ -121,9 +140,12 @@ namespace PonscripterParser
             //For now, just treat anything that looks like a function as a function. Should revert this later
             if (m.Success)
             {
-                if (functionNames.Contains(m.Value))
+                bool found = functionNames.TryGetValue(m.Value, out int value);
+
+                if (found)
                 {
-                    return new SemanticRegexResult(TokenType.FnCall, m.Value, LexingMode.Function);
+                    //if the function takes no arguments, immediately transition to normal mode
+                    return new SemanticRegexResult(TokenType.FnCall, m.Value, value == 0 ? LexingMode.Normal : LexingMode.ExpressionStart);
                 }
                 else
                 {

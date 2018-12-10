@@ -19,5 +19,7 @@ namespace PonscripterParser
         Comma,
         Alias, //numAlias, stringalias etc
         WhiteSpace, //there is no RegexDef for this - it's just in the main parsing loop
+        StringVar,     //eg $Example_String_variable1
+        NumericVar,    //eg %Example_String_variable2
     }
 }

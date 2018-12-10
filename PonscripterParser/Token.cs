@@ -19,7 +19,7 @@ namespace PonscripterParser
 
         public override string ToString()
         {
-            return $"{tokenType,8}: [{tokenString}]";
+            return $"{tokenType,12}: [{tokenString}]";
         }
     }
 }

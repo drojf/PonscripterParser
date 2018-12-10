@@ -64,16 +64,18 @@ namespace PonscripterParser
                 }
             },
 
-            {   LexingMode.Function, new List<SemanticRegex>()
+            {   LexingMode.ExpressionStart, new List<SemanticRegex>()
                 {
-                    new RString(),
-                    new RComma(),
-                    new RNumber(),
-                    new ROperator(),
-                    new RBracket(),
-                    new RAlias(),
-                    new RColon(),   //-> normal mode
-                    new RHat(),
+                    new RString(), //can't be
+                    new RComma(), //can be followed by hat
+                    new RNumber(), //can't be followed by hat
+                    new ROperator(), //can be
+                    new RBracket(), //can be
+                    new RAlias(), //can't be
+                    new RStringVariable(), //can't be
+                    new RNumericVariable(), //can't be
+                    new RColon(),   //-> Normal Mode
+                    //new RHat(),     //-> Text Mode
                 }
             },
 
@@ -82,6 +84,14 @@ namespace PonscripterParser
                     new RText(),
                 }
             },
+
+            {
+                LexingMode.ArgOperator, new List<SemanticRegex>()
+                {
+
+                }
+            },
+
         };
 
         static void ProcessSingleLine(string line)
@@ -92,6 +102,22 @@ namespace PonscripterParser
 
             LexingMode lexingMode = LexingMode.Normal;
             int startat = 0;
+
+            //even for lexing, we need to know how many arguments exist for each function
+            //This is due to the ambiguity because the hat ^ symbol can either start text mode,
+            //or act as opening/closing quotes for a string like ^"this is a string"^
+            //If a function does not have count listed, just assume it is text mode
+            //because this feature is used so infrequently.
+            //int function_arguments_remaining = 0;     
+            /* Use the following logic to determine if it should be TEXT or ARGUMENT:
+             * IF the hat is the first argument, AND the function takes >0 arguments:
+                    treat it as an argument 
+                ELSE IF the hat is preceeded by a comma
+                    treat it as an argument
+                ELSE treat it as TEXT
+             * 
+             * */
+
 
             List<Token> tokens = new List<Token>();
 
@@ -119,6 +145,14 @@ namespace PonscripterParser
                         Console.Write($"Matched {result.token} ");
                         startat += result.token.tokenString.Length;
                         tokens.Add(result.token);
+
+                        //check for transition into function mode
+                        /*if(lexingMode != LexingMode.Function &&
+                           result.newLexingMode == LexingMode.Function)
+                        {
+                            function_arguments_remaining = 
+                        }
+                        if()*/
 
                         lexingMode = result.newLexingMode;
                         Console.Write($"Mode Changed To [{lexingMode}]");
@@ -157,6 +191,7 @@ namespace PonscripterParser
                 foreach (string line in File.ReadAllLines(script_name))
                 {
                     ProcessSingleLine(line);
+                    Console.ReadKey();
                 }
             }
 

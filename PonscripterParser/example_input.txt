@@ -1,3 +1,8 @@
+langen 2+2,^tes,t^,^test2^, 1 + 3 * 6
+langen ^tes,t^,^tes,t^  ^tes,t^
+ld r,^basdf^ + ^asdf^,24 ^will this text be seen?^
+pbreakstr ^	 -^
+
 	getparam $witchh11,$witchh12,%witchh13,%witchh14
   langjptest asdf
  langjp asdf
@@ -57,3 +62,96 @@ in the below line, the first / and comment are treated as text! hte last / is tr
 langen:dwave_eng 0, geo_1e788:^asdfafsd...They probably had some kind n that deeply by a human's strength alone."/ ;kajshldksajhd /
 
 langen:dwave_eng 0, geo_1e788:^asdfafsd...They probably had some kind of w@dwave_eng 0, geo_1e789^もももももも  That handle was too short to be driven in that deep/
+
+;value2500
+;gameid Umineko4hdz
+*define
+
+humanz 900
+pbreakstr ^	 -^
+;Engine https://github.com/chronotrig/ponscripter-fork-wh
+automode
+automode_time 1000
+mode_wave_demo
+
+language english
+
+nsa
+
+errorsave ;エラー時に999番に保存
+
+;killmenu 7
+;「CD-DA」項目を非表示
+;killmenu 4
+;「ボリューム」項目を非表示
+;killmenu 2
+;「表示形式」項目を非表示
+
+;caption "うみねこのなく頃に"
+;versionstr "うみねこのなく頃にＥＰ４　ver1.005","制作　０７ｔｈ　Ｅｘｐａｎｓｉｏｎ"
+caption "Umineko: When The Seagulls Cry"
+versionstr "Umineko no Naku Koro ni, ver1.005","created by 07th Expansion"
+
+h_rendering none, integer
+h_mapfont 0, "fonts/face0.otf"
+h_mapfont 1, "fonts/face1.otf"
+h_mapfont 2, "fonts/face2.otf"
+
+;メニューの内容
+;rmenu "セーブする",save,"ロードする",load,"次の選択肢へスキップする",skip,"文字を消す",windowerase,"回想",lookback,"タイトルに戻る",reset
+
+;メニューウィンドの設定
+menusetwindow 20,20,5,3,1,0,#cccccc
+;menuselectcolor #aaaaff,#ffffff,#aaaaaa
+
+;セーブファイルの指定
+savename "記録を保存する","記録を読み込む","記録"
+savenumber 18
+
+;グローバル変数の宣言
+globalon
+
+;メッセージスピード
+defaultspeed 40,20,0
+
+;defaultfont "ＭＳ ゴシック"
+
+;禁則処理
+addkinsoku "”","“"
+
+mov %0,1
+
+
+;エフェクト
+
+;デフォルトスピード
+;エフェクト　クイック
+;エフェクト　スロウ
+;部活用　クイック
+
+
+;crossfade
+effect 2,10,1000
+effect 22,10,400
+effect 42,10,3000
+effect 62,10,200
+;表情の変化用
+effect 80,10,200
+
+;left fade
+effect 3,18,1300,":c;Bmp\Efe\left.bmp"
+effect 23,18,300,":c;Bmp\Efe\left.bmp"
+effect 43,18,3000,":c;Bmp\Efe\left.bmp"
+effect 63,15,300,":c;Bmp\Efe\left.bmp"
+effect 83,15,5,":c;Bmp\Efe\left.bmp"
+
+
+;グローバル変数エリア
+
+; 使用変数名
+
+numalias UMINEKOEND,2901     ;終了フラグ
+numalias UMINEKOPATCH,2955
+numalias rroff,2956
+numalias ispatched,2957
+numalias achieve_1,2958
