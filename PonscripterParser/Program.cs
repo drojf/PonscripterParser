@@ -8,12 +8,40 @@ using System.Threading.Tasks;
 
 namespace PonscripterParser
 {
+    class NamedRegex
+    {
+        public Regex regex;
+        public TokenType tokenType;
+
+        public NamedRegex(Regex r, TokenType t) {
+            regex = r;
+            tokenType = t;
+        }
+    }
+
     class Program
     {
         //must use \G to use in conjunction with 'startat' parameter of Match - apparently ^ means start of string ONLY, not startof 'startat'
         //public static readonly Regex clickWait = new Regex(@"\G@", RegexOptions.IgnoreCase);
         public static readonly Regex WHITESPACE_REGEX = new Regex(@"\G\s+", RegexOptions.IgnoreCase);
+        public static string IDENTIFIER_PATTERN = @"[a-zA-Z_]+[0-9a-zA-Z_]*";
 
+        public static NamedRegex R_CLICK_WAIT = new NamedRegex(new Regex(@"\G@"), TokenType.ClickWait);
+        public static NamedRegex R_PAGE_WAIT = new NamedRegex(new Regex(@"\G\\"), TokenType.PageWait);
+        public static NamedRegex R_IGNORE_NEW_LINE = new NamedRegex(new Regex(@"\G\/"), TokenType.IgnoreNewLine);
+        public static NamedRegex R_TEXT = new NamedRegex(new Regex(@"\G[^@\\\/]+"), TokenType.Text);
+        public static NamedRegex R_STRING = new NamedRegex(new Regex(@"\G""[^""]+"""), TokenType.Literal);
+        public static NamedRegex R_NUMBER = new NamedRegex(new Regex(@"\G\d+"), TokenType.Literal);
+        public static NamedRegex R_OPERATOR = new NamedRegex(new Regex(@"\G[\+\-\*\/]"), TokenType.Operator);
+        public static NamedRegex R_BRACKET = new NamedRegex(new Regex(@"\G[\(\)]"), TokenType.Bracket);
+        public static NamedRegex R_COMMA = new NamedRegex(new Regex(@"\G,"), TokenType.Comma);
+        public static NamedRegex R_ALIAS = new NamedRegex(new Regex(@"\G" + RPatterns.IDENTIFIER_PATTERN), TokenType.Alias);
+        public static NamedRegex R_LABEL = new NamedRegex(new Regex(@"\G\*" + RPatterns.IDENTIFIER_PATTERN), TokenType.Label);
+        public static NamedRegex R_STRING_VARIABLE = new NamedRegex(new Regex(@"\G\$" + RPatterns.IDENTIFIER_PATTERN), TokenType.StringVar);
+        public static NamedRegex R_NUMERIC_VARIABLE = new NamedRegex(new Regex(@"\G\%" + RPatterns.IDENTIFIER_PATTERN), TokenType.NumericVar);
+        public static NamedRegex R_COLON = new NamedRegex(new Regex(@"\G:"), TokenType.Colon);
+        public static NamedRegex R_HAT = new NamedRegex(new Regex(@"\G\^"), TokenType.Hat);
+        public static NamedRegex R_FUNCTION_CALL = new NamedRegex(new Regex(@"\G[!a-zA-Z_]+[0-9!a-zA-Z_]*"), TokenType.FnCall);
         /*public static readonly Regex langEnAtStartOfLine = new Regex(@"^\s*langen", RegexOptions.IgnoreCase);
 
         //NOTE: use https://regex101.com/ for testing/debugging these regexes (or rewrite using another type of pattern matching library)
@@ -48,6 +76,27 @@ namespace PonscripterParser
             //whitespace at end of line. NOTE: the game ignores this, so nothing is emitted
             new NamedRegex(MatchType.whitespace_before_newline,       @"\G[\s\x10]+$", RegexOptions.IgnoreCase),
         };*/
+
+        
+        public static SemanticRegexResult SemanticRegexResultOrNull(NamedRegex nregex, string s, int startat, LexingMode newLexingMode)
+        {
+            Match m = nregex.regex.Match(s, startat);
+            return m.Success ? new SemanticRegexResult(nregex.tokenType, m.Value, newLexingMode) : null;
+        }
+
+        public static SemanticRegexResult NormalModeMatch(string s, int startat)
+        {
+            return
+                   SemanticRegexResultOrNull(R_CLICK_WAIT, s, startat, LexingMode.Normal)
+                ?? SemanticRegexResultOrNull(R_PAGE_WAIT, s, startat, LexingMode.Normal)
+                ?? SemanticRegexResultOrNull(R_IGNORE_NEW_LINE, s, startat, LexingMode.Normal)
+                ?? SemanticRegexResultOrNull(R_IGNORE_NEW_LINE, s, startat, LexingMode.Normal)
+                ?? SemanticRegexResultOrNull(R_COLON, s, startat, LexingMode.Normal)
+                ?? SemanticRegexResultOrNull(R_FUNCTION_CALL, s, startat, LexingMode.ExpressionStart)
+                ?? SemanticRegexResultOrNull(R_HAT, s, startat, LexingMode.Text)
+                ?? SemanticRegexResultOrNull(R_TEXT, s, startat, LexingMode.Normal)
+                ?? null;
+        }
 
         public static Dictionary<LexingMode, List<SemanticRegex>> lexingmodeToMatches = new Dictionary<LexingMode, List<SemanticRegex>>
         {
@@ -146,13 +195,6 @@ namespace PonscripterParser
                         startat += result.token.tokenString.Length;
                         tokens.Add(result.token);
 
-                        //check for transition into function mode
-                        /*if(lexingMode != LexingMode.Function &&
-                           result.newLexingMode == LexingMode.Function)
-                        {
-                            function_arguments_remaining = 
-                        }
-                        if()*/
 
                         lexingMode = result.newLexingMode;
                         Console.Write($"Mode Changed To [{lexingMode}]");
