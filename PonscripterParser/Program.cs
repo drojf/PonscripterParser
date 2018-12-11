@@ -135,7 +135,7 @@ namespace PonscripterParser
             //TODO: raise flag for user defined functions, as in those cases we're not sure how many arguments it takes
 
             //if the function takes no arguments, immediately transition to normal mode
-            return new SemanticRegexResult(TokenType.FnCall, m.Value, numArgs.Value == 0 ? LexingMode.Normal : LexingMode.FunctionStart);
+            return new SemanticRegexResult(TokenType.FnCall, m.Value, numArgs.Value == 0 ? LexingMode.Normal : LexingMode.ExpressionExceptOperator);
         }
 
         public static SemanticRegexResult NormalModeMatch(string s, int startat)
@@ -152,16 +152,16 @@ namespace PonscripterParser
             return result ?? SemanticRegexResult.FailureAndTerminate();
         }
 
-        public static SemanticRegexResult FunctionNotOperator(string s, int startat)
+        public static SemanticRegexResult ExpressionExceptOperator(string s, int startat)
         {
 
             SemanticRegexResult nonOperatorResult =
-                SemanticRegexResultOrNull(R_STRING, s, startat, LexingMode.ArgOperator) ??
-                SemanticRegexResultOrNull(R_NUMBER, s, startat, LexingMode.ArgOperator) ??
-                SemanticRegexResultOrNull(R_ALIAS, s, startat, LexingMode.ArgOperator) ??
-                SemanticRegexResultOrNull(R_STRING_VARIABLE, s, startat, LexingMode.ArgOperator) ??
-                SemanticRegexResultOrNull(R_NUMERIC_VARIABLE, s, startat, LexingMode.ArgOperator) ??
-                SemanticRegexResultOrNull(R_BRACKET, s, startat, LexingMode.FunctionStart); //after a bracket in not operator mode, must either get another bracket or a non-operator
+                SemanticRegexResultOrNull(R_STRING, s, startat, LexingMode.OperatorOrComma) ??
+                SemanticRegexResultOrNull(R_NUMBER, s, startat, LexingMode.OperatorOrComma) ??
+                SemanticRegexResultOrNull(R_ALIAS, s, startat, LexingMode.OperatorOrComma) ??
+                SemanticRegexResultOrNull(R_STRING_VARIABLE, s, startat, LexingMode.OperatorOrComma) ??
+                SemanticRegexResultOrNull(R_NUMERIC_VARIABLE, s, startat, LexingMode.OperatorOrComma) ??
+                SemanticRegexResultOrNull(R_BRACKET, s, startat, LexingMode.ExpressionExceptOperator); //after a bracket in not operator mode, must either get another bracket or a non-operator
 
             return nonOperatorResult ?? SemanticRegexResult.FailureAndTerminate();
         }
@@ -169,9 +169,9 @@ namespace PonscripterParser
         public static SemanticRegexResult OperatorOrComma(string s, int startat)
         {
             SemanticRegexResult operatorResult =
-                SemanticRegexResultOrNull(R_OPERATOR, s, startat, LexingMode.FunctionStart) ??
-                SemanticRegexResultOrNull(R_COMMA, s, startat, LexingMode.FunctionStart) ??
-                SemanticRegexResultOrNull(R_BRACKET, s, startat, LexingMode.ArgOperator);   //after a bracket in op mode, stay in op mode
+                SemanticRegexResultOrNull(R_OPERATOR, s, startat, LexingMode.ExpressionExceptOperator) ??
+                SemanticRegexResultOrNull(R_COMMA, s, startat, LexingMode.ExpressionExceptOperator) ??
+                SemanticRegexResultOrNull(R_BRACKET, s, startat, LexingMode.OperatorOrComma);   //after a bracket in op mode, stay in op mode
 
             return operatorResult ?? SemanticRegexResult.FailureAndChangeState(LexingMode.Normal);   
         }
@@ -190,10 +190,10 @@ namespace PonscripterParser
                 case LexingMode.Normal:
                     return NormalModeMatch(s, startat);
 
-                case LexingMode.FunctionStart:
-                    return FunctionNotOperator(s, startat);
+                case LexingMode.ExpressionExceptOperator:
+                    return ExpressionExceptOperator(s, startat);
 
-                case LexingMode.ArgOperator:
+                case LexingMode.OperatorOrComma:
                     return OperatorOrComma(s, startat);
 
                 case LexingMode.Text:
