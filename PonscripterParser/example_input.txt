@@ -1,4 +1,6 @@
-﻿dwave 0,5, "asdfasf" : dwave 0,(5 + 5) * 10 / 2, "asdfasf"
+﻿	_ld l,$witchh15,%witchh3 : mov $last_l, $witchh2
+
+dwave 0,5, "asdfasf" : dwave 0,(5 + 5) * 10 / 2, "asdfasf"
 dwave 0,5 + 5 * 10, "asdfasf" ;subexpressions allowed? only for function arguments...or just blindly match + - etc. in function arg?
 
 langen 2+2,^tes,t^,^test2^, 1 + 3 * 6

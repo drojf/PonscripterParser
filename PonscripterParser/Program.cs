@@ -86,7 +86,27 @@ namespace PonscripterParser
             {"getparam", -1 },  //-1 indicates varags
             //later these functions should be populated dynamically by scanning function defs!
             {"dwave_eng", 2 },
+            {"ld", 3 },
+            {"mov", 2 },
         };
+
+        //check if the function name is known.
+        //Also accept the function if it exists and is prefixed with '_' (this means call the original, non overriden version of the function)
+        public static int? CheckFunctionNumArgs(string functionName)
+        {
+            if(functionNames.TryGetValue(functionName, out int numArgs))
+            {
+                return numArgs;
+            }
+
+            if(functionName[0] == '_' && 
+               functionNames.TryGetValue(functionName.Substring(1, functionName.Length-1), out int numArgsNonOverriden))
+            {
+                return numArgsNonOverriden;
+            }
+
+            return null;
+        }
 
         public static SemanticRegexResult SemanticRegexResultOrNull(NamedRegex nregex, string s, int startat, LexingMode newLexingMode)
         {
@@ -95,24 +115,27 @@ namespace PonscripterParser
         }
 
         //check for a function call. go back to normal mode if function has 0 arguments, otherwise go to function mode
-        public static SemanticRegexResult CheckFunctionCall(string s, int startat)
+        private static SemanticRegexResult CheckFunctionCall(string s, int startat)
         {
+            //check if the function regex matched
             Match m = FUNCTION_CALL_REGEX.Match(s, startat);
-
-            bool found = functionNames.TryGetValue(m.Value, out int value);
-
-            if (found)
+            if(!m.Success)
             {
-                //TODO: raise flag for user defined functions, as in those cases we're not sure how many arguments it takes
-
-                //if the function takes no arguments, immediately transition to normal mode
-                return new SemanticRegexResult(TokenType.FnCall, m.Value, value == 0 ? LexingMode.Normal : LexingMode.FunctionStart);
+                return null;
             }
-            else
+
+
+            int? numArgs = CheckFunctionNumArgs(m.Value);
+            if (numArgs == null)
             {
                 Console.WriteLine($"WARNING: [{m.Value}] looks like a function, but not found. Ignoring.");
                 return null;
             }
+
+            //TODO: raise flag for user defined functions, as in those cases we're not sure how many arguments it takes
+
+            //if the function takes no arguments, immediately transition to normal mode
+            return new SemanticRegexResult(TokenType.FnCall, m.Value, numArgs.Value == 0 ? LexingMode.Normal : LexingMode.FunctionStart);
         }
 
         public static SemanticRegexResult NormalModeMatch(string s, int startat)
