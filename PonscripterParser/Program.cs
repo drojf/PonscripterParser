@@ -35,10 +35,10 @@ namespace PonscripterParser
         public static NamedRegex R_OPERATOR = new NamedRegex(new Regex(@"\G[\+\-\*\/]"), TokenType.Operator);
         public static NamedRegex R_BRACKET = new NamedRegex(new Regex(@"\G[\(\)]"), TokenType.Bracket);
         public static NamedRegex R_COMMA = new NamedRegex(new Regex(@"\G,"), TokenType.Comma);
-        public static NamedRegex R_ALIAS = new NamedRegex(new Regex(@"\G" + RPatterns.IDENTIFIER_PATTERN), TokenType.Alias);
-        public static NamedRegex R_LABEL = new NamedRegex(new Regex(@"\G\*" + RPatterns.IDENTIFIER_PATTERN), TokenType.Label);
-        public static NamedRegex R_STRING_VARIABLE = new NamedRegex(new Regex(@"\G\$" + RPatterns.IDENTIFIER_PATTERN), TokenType.StringVar);
-        public static NamedRegex R_NUMERIC_VARIABLE = new NamedRegex(new Regex(@"\G\%" + RPatterns.IDENTIFIER_PATTERN), TokenType.NumericVar);
+        public static NamedRegex R_ALIAS = new NamedRegex(new Regex(@"\G" + IDENTIFIER_PATTERN), TokenType.Alias);
+        public static NamedRegex R_LABEL = new NamedRegex(new Regex(@"\G\*" + IDENTIFIER_PATTERN), TokenType.Label);
+        public static NamedRegex R_STRING_VARIABLE = new NamedRegex(new Regex(@"\G\$" + IDENTIFIER_PATTERN), TokenType.StringVar);
+        public static NamedRegex R_NUMERIC_VARIABLE = new NamedRegex(new Regex(@"\G\%" + IDENTIFIER_PATTERN), TokenType.NumericVar);
         public static NamedRegex R_COLON = new NamedRegex(new Regex(@"\G:"), TokenType.Colon);
         public static NamedRegex R_HAT = new NamedRegex(new Regex(@"\G\^"), TokenType.Hat);
         //public static NamedRegex R_FUNCTION_CALL = new NamedRegex(new Regex(@"\G[!a-zA-Z_]+[0-9!a-zA-Z_]*"), TokenType.FnCall);
@@ -195,16 +195,6 @@ namespace PonscripterParser
             //or act as opening/closing quotes for a string like ^"this is a string"^
             //If a function does not have count listed, just assume it is text mode
             //because this feature is used so infrequently.
-            //int function_arguments_remaining = 0;     
-            /* Use the following logic to determine if it should be TEXT or ARGUMENT:
-             * IF the hat is the first argument, AND the function takes >0 arguments:
-                    treat it as an argument 
-                ELSE IF the hat is preceeded by a comma
-                    treat it as an argument
-                ELSE treat it as TEXT
-             * 
-             * */
-
 
             List<Token> tokens = new List<Token>();
 
