@@ -1,3 +1,6 @@
+﻿dwave 0,5, "asdfasf" : dwave 0,(5 + 5) * 10 / 2, "asdfasf"
+dwave 0,5 + 5 * 10, "asdfasf" ;subexpressions allowed? only for function arguments...or just blindly match + - etc. in function arg?
+
 langen 2+2,^tes,t^,^test2^, 1 + 3 * 6
 langen ^tes,t^,^tes,t^  ^tes,t^
 ld r,^basdf^ + ^asdf^,24 ^will this text be seen?^

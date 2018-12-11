@@ -103,6 +103,8 @@ namespace PonscripterParser
 
             if (found)
             {
+                //TODO: raise flag for user defined functions, as in those cases we're not sure how many arguments it takes
+
                 //if the function takes no arguments, immediately transition to normal mode
                 return new SemanticRegexResult(TokenType.FnCall, m.Value, value == 0 ? LexingMode.Normal : LexingMode.FunctionStart);
             }
@@ -127,14 +129,16 @@ namespace PonscripterParser
             return result ?? SemanticRegexResult.FailureAndTerminate();
         }
 
-        public static SemanticRegexResult FunctionNotExpression(string s, int startat)
+        public static SemanticRegexResult FunctionNotOperator(string s, int startat)
         {
+
             SemanticRegexResult nonOperatorResult =
-                SemanticRegexResultOrNull(R_STRING, s, startat, LexingMode.FunctionStart) ??
-                SemanticRegexResultOrNull(R_NUMBER, s, startat, LexingMode.FunctionStart) ??
-                SemanticRegexResultOrNull(R_ALIAS, s, startat, LexingMode.FunctionStart) ??
-                SemanticRegexResultOrNull(R_STRING_VARIABLE, s, startat, LexingMode.FunctionStart) ??
-                SemanticRegexResultOrNull(R_NUMERIC_VARIABLE, s, startat, LexingMode.FunctionStart);
+                SemanticRegexResultOrNull(R_STRING, s, startat, LexingMode.ArgOperator) ??
+                SemanticRegexResultOrNull(R_NUMBER, s, startat, LexingMode.ArgOperator) ??
+                SemanticRegexResultOrNull(R_ALIAS, s, startat, LexingMode.ArgOperator) ??
+                SemanticRegexResultOrNull(R_STRING_VARIABLE, s, startat, LexingMode.ArgOperator) ??
+                SemanticRegexResultOrNull(R_NUMERIC_VARIABLE, s, startat, LexingMode.ArgOperator) ??
+                SemanticRegexResultOrNull(R_BRACKET, s, startat, LexingMode.FunctionStart); //after a bracket in not operator mode, must either get another bracket or a non-operator
 
             return nonOperatorResult ?? SemanticRegexResult.FailureAndTerminate();
         }
@@ -143,7 +147,8 @@ namespace PonscripterParser
         {
             SemanticRegexResult operatorResult =
                 SemanticRegexResultOrNull(R_OPERATOR, s, startat, LexingMode.FunctionStart) ??
-                SemanticRegexResultOrNull(R_COMMA, s, startat, LexingMode.FunctionStart);
+                SemanticRegexResultOrNull(R_COMMA, s, startat, LexingMode.FunctionStart) ??
+                SemanticRegexResultOrNull(R_BRACKET, s, startat, LexingMode.ArgOperator);   //after a bracket in op mode, stay in op mode
 
             return operatorResult ?? SemanticRegexResult.FailureAndChangeState(LexingMode.Normal);   
         }
@@ -154,50 +159,27 @@ namespace PonscripterParser
             return operatorResult ?? SemanticRegexResult.FailureAndTerminate();
         }
 
-        public static Dictionary<LexingMode, List<SemanticRegex>> lexingmodeToMatches = new Dictionary<LexingMode, List<SemanticRegex>>
+        //TODO: convert to array of functions?
+        public static SemanticRegexResult DoMatch(string s, int startat, LexingMode currentLexingMode)
         {
-            {   LexingMode.Normal, new List<SemanticRegex>()
-                {
-                    new RClickWait(),
-                    new RFunctionCall(), //-> Function Mode
-                    new RColon(), //ignore repeated colons
-                    new RHat(), //-> Text Mode
-                    new RClickWait(),
-                    new RPageWait(),
-                    new RIgnoreNewLine(),
-                    new RText(),
-                }
-            },
-
-            {   LexingMode.FunctionStart, new List<SemanticRegex>()
-                {
-                    new RString(), //can't be
-                    new RComma(), //can be followed by hat
-                    new RNumber(), //can't be followed by hat
-                    new ROperator(), //can be
-                    new RBracket(), //can be
-                    new RAlias(), //can't be
-                    new RStringVariable(), //can't be
-                    new RNumericVariable(), //can't be
-                    new RColon(),   //-> Normal Mode
-                    //new RHat(),     //-> Text Mode
-                }
-            },
-
-            {   LexingMode.Text, new List<SemanticRegex>()
-                {
-                    new RText(),
-                }
-            },
-
+            switch(currentLexingMode)
             {
-                LexingMode.ArgOperator, new List<SemanticRegex>()
-                {
+                case LexingMode.Normal:
+                    return NormalModeMatch(s, startat);
 
-                }
-            },
+                case LexingMode.FunctionStart:
+                    return FunctionNotOperator(s, startat);
 
-        };
+                case LexingMode.ArgOperator:
+                    return OperatorOrComma(s, startat);
+
+                case LexingMode.Text:
+                    return TextModeMatch(s, startat);
+
+                default:
+                    throw new NotImplementedException("Lexing mode not implemented");
+            }
+        }
 
         static void ProcessSingleLine(string line)
         {
@@ -228,8 +210,6 @@ namespace PonscripterParser
 
             for(int iteration = 0; startat < line.Length && iteration < 1000; iteration++)
             {
-                bool debug_substitution_made = false;
-
                 //skip any whitespace at start of line
                 Match whitespace_match = WHITESPACE_REGEX.Match(line, startat);
                 if(whitespace_match.Success)
@@ -241,26 +221,39 @@ namespace PonscripterParser
                 }
 
                 //try all matches
-                foreach (SemanticRegex pattern in lexingmodeToMatches[lexingMode])
+
+                SemanticRegexResult result = DoMatch(line, startat, lexingMode);
+                if(result == null)
                 {
-                    SemanticRegexResult result = pattern.DoMatch(line, startat, lexingMode);
-                    if (result != null)
-                    {
-                        debug_substitution_made = true;
-                        Console.Write($"Matched {result.token} ");
-                        startat += result.token.tokenString.Length;
-                        tokens.Add(result.token);
-
-
-                        lexingMode = result.newLexingMode;
-                        Console.Write($"Mode Changed To [{lexingMode}]");
-                        Console.WriteLine();
-                        break;
-                    }
+                    throw new Exception("Result is null!");
                 }
 
-                if(!debug_substitution_made)
+                if(result.modeResult == ModeResult.Success)
                 {
+                    Console.Write($"Matched {result.token} ");
+                    startat += result.token.tokenString.Length;
+                    tokens.Add(result.token);
+
+
+                    lexingMode = result.newLexingMode;
+                    Console.Write($"Mode Changed To [{lexingMode}]");
+                    Console.WriteLine();
+                }
+                else if (result.modeResult == ModeResult.FailureAndChangeState)
+                {
+                    lexingMode = result.newLexingMode;
+                }
+                else
+                {
+                    //lexing has failed
+                    break;
+                }
+
+
+
+                if(iteration > 500)
+                {
+                    Console.WriteLine("Greater than 500 iterations - matching failed!");
                     break;
                 }
             }
