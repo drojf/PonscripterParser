@@ -30,7 +30,7 @@ namespace PonscripterParser
         public static NamedRegex R_PAGE_WAIT = new NamedRegex(new Regex(@"\G\\"), TokenType.PageWait);
         public static NamedRegex R_IGNORE_NEW_LINE = new NamedRegex(new Regex(@"\G\/"), TokenType.IgnoreNewLine);
         public static NamedRegex R_TEXT = new NamedRegex(new Regex(@"\G[^@\\\/]+"), TokenType.Text);
-        public static NamedRegex R_STRING = new NamedRegex(new Regex(@"\G""[^""]+"""), TokenType.Literal);
+        public static NamedRegex R_STRING = new NamedRegex(new Regex(@"(\G""[^""]+"")|(\G\^[^\^]+\^)"), TokenType.Literal);
         public static NamedRegex R_NUMBER = new NamedRegex(new Regex(@"\G\d+"), TokenType.Literal);
         public static NamedRegex R_OPERATOR = new NamedRegex(new Regex(@"\G[\+\-\*\/]"), TokenType.Operator);
         public static NamedRegex R_BRACKET = new NamedRegex(new Regex(@"\G[\(\)]"), TokenType.Bracket);
@@ -88,6 +88,9 @@ namespace PonscripterParser
             {"dwave_eng", 2 },
             {"ld", 3 },
             {"mov", 2 },
+            {"pbreakstr", 1 },
+            {"caption", 1 },
+            {"versionstr", 2 },
         };
 
         //check if the function name is known.
@@ -147,6 +150,7 @@ namespace PonscripterParser
             ?? SemanticRegexResultOrNull(R_COLON, s, startat, LexingMode.Normal)
             ?? CheckFunctionCall(s, startat)
             ?? SemanticRegexResultOrNull(R_HAT, s, startat, LexingMode.Text)
+            ?? SemanticRegexResultOrNull(R_LABEL, s, startat, LexingMode.Normal)    //after a label in normal mode, I guess the only valid thing is a comment?
             ?? SemanticRegexResultOrNull(R_TEXT, s, startat, LexingMode.Normal);
 
             return result ?? SemanticRegexResult.FailureAndTerminate();
