@@ -48,6 +48,7 @@
     <Compile Include="SemanticRegexes.cs" />
     <Compile Include="Token.cs" />
     <Compile Include="TokenType.cs" />
+    <Compile Include="UserFunctionScanner.cs" />
   </ItemGroup>
   <ItemGroup>
     <None Include="App.config" />

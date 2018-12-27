@@ -21,6 +21,9 @@ namespace PonscripterParser
 
     class Program
     {
+        //TODO: preparse script looking for function definitions. 
+        //Also take into account that the number of function arguments for user functions is unknown (unless you scan the function definitions as well).
+
         //must use \G to use in conjunction with 'startat' parameter of Match - apparently ^ means start of string ONLY, not startof 'startat'
         //public static readonly Regex clickWait = new Regex(@"\G@", RegexOptions.IgnoreCase);
         public static readonly Regex WHITESPACE_REGEX = new Regex(@"\G\s+", RegexOptions.IgnoreCase);
@@ -93,6 +96,16 @@ namespace PonscripterParser
             {"versionstr", 2 },
         };
 
+        public static void log(string s)
+        {
+            //logLine(s);
+        }
+
+        public static void log()
+        {
+            //logLine();
+        }
+
         //check if the function name is known.
         //Also accept the function if it exists and is prefixed with '_' (this means call the original, non overriden version of the function)
         public static int? CheckFunctionNumArgs(string functionName)
@@ -131,7 +144,7 @@ namespace PonscripterParser
             int? numArgs = CheckFunctionNumArgs(m.Value);
             if (numArgs == null)
             {
-                Console.WriteLine($"WARNING: [{m.Value}] looks like a function, but not found. Ignoring.");
+                log($"WARNING: [{m.Value}] looks like a function, but not found. Ignoring.");
                 return null;
             }
 
@@ -208,11 +221,11 @@ namespace PonscripterParser
             }
         }
 
-        static void ProcessSingleLine(string line)
+        static List<Token> ProcessSingleLine(string line)
         {
             line = line.TrimEnd();
 
-            Console.WriteLine($"\nBegin processing line [{line}]");
+            log($"\nBegin processing line [{line}]");
 
             LexingMode lexingMode = LexingMode.Normal;
             int startat = 0;
@@ -233,7 +246,7 @@ namespace PonscripterParser
                 {
                     tokens.Add(new Token(TokenType.WhiteSpace, whitespace_match.Value));
 
-                    //Console.WriteLine($"Skipping whitespace [{whitespace_match.Groups[0]}]");
+                    //log($"Skipping whitespace [{whitespace_match.Groups[0]}]");
                     startat += whitespace_match.Length;
                 }
 
@@ -247,14 +260,14 @@ namespace PonscripterParser
 
                 if(result.modeResult == ModeResult.Success)
                 {
-                    Console.Write($"Matched {result.token} ");
+                    log($"Matched {result.token} ");
                     startat += result.token.tokenString.Length;
                     tokens.Add(result.token);
 
 
                     lexingMode = result.newLexingMode;
-                    Console.Write($"Mode Changed To [{lexingMode}]");
-                    Console.WriteLine();
+                    log($"Mode Changed To [{lexingMode}]");
+                    log();
                 }
                 else if (result.modeResult == ModeResult.FailureAndChangeState)
                 {
@@ -270,7 +283,7 @@ namespace PonscripterParser
 
                 if(iteration > 500)
                 {
-                    Console.WriteLine("Greater than 500 iterations - matching failed!");
+                    log("Greater than 500 iterations - matching failed!");
                     break;
                 }
             }
@@ -278,14 +291,16 @@ namespace PonscripterParser
 
             if (startat < line.Length)
             {
-                Console.Write("WARNING: line did not match to completion!");
+                log("WARNING: line did not match to completion!");
             }
             else
             {
-                Console.Write($"Successfully Parsed line");
+                log($"Successfully Parsed line");
             }
 
-            Console.WriteLine($" Got {tokens.Count} Tokens");
+            log($" Got {tokens.Count} Tokens");
+
+            return tokens;
         }
 
         static void Main(string[] args)
@@ -294,13 +309,40 @@ namespace PonscripterParser
             Console.OutputEncoding = Encoding.UTF8;
 
             {
-                const string script_name = @"example_input.txt";
+                const string script_name = @"C:\drojf\large_projects\umineko\umineko-question\InDevelopment\ManualUpdates\0.utf"; //@"example_input.txt";
+                const string output_path = @"c:\temp\markov_corpus.txt";
 
-                foreach (string line in File.ReadAllLines(script_name))
+                StringBuilder debug_allText = new StringBuilder(100000);
+                string[] allLines = File.ReadAllLines(script_name);
+
+                UserFunctionScanner.scan(allLines);
+
+                foreach (string line in allLines)
                 {
-                    ProcessSingleLine(line);
-                    Console.ReadKey();
+                    List<Token> tokens = ProcessSingleLine(line);
+                    if (line.Contains("langen"))
+                    {
+                        foreach (Token t in tokens)
+                        {
+                            switch (t.tokenType)
+                            {
+                                case TokenType.Text:
+                                    debug_allText.AppendLine(t.tokenString);
+                                    break;
+
+                                /*case TokenType.ClickWait:
+                                case TokenType.PageWait:
+                                    allText.AppendLine();
+                                    break;*/
+                            }
+                        }
+                    }
+
+                    //Console.ReadKey();
                 }
+
+                File.WriteAllText(output_path, debug_allText.ToString());
+
             }
 
             Console.WriteLine("Program Finished");
