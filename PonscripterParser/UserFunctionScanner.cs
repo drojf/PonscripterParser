@@ -13,19 +13,59 @@ namespace PonscripterParser
         static Regex defsubRegex = new Regex(@"^\s*defsub\s+([^;\s]+)", RegexOptions.IgnoreCase);
         static Regex labelRegex = new Regex(@"^\s*\*([^;\s]+)", RegexOptions.IgnoreCase);
         static Regex returnRegex = new Regex(@"^\s*return", RegexOptions.IgnoreCase);
-        static Regex getParamRegex = new Regex(@"^\s*getparam\s+([^;\s]+)", RegexOptions.IgnoreCase);
+        static Regex getParamRegex = new Regex(@"^\s*getparam\s+([^;]+)", RegexOptions.IgnoreCase); //this assumes there are no other commands on the getparam line besides a comment.
+
+        public class SubroutineArgument
+        {
+            string name;
+            bool isStringArgument; //arguments are either numeric or string
+
+            public SubroutineArgument(bool isStringArgument, string name)
+            {
+                this.name = name;
+                this.isStringArgument = isStringArgument;
+            }
+        }
 
         /// <summary>
         /// WIP class to hold user subroutine information (such as number of arguments)
         /// </summary>
         public class SubroutineInformation
         {
-            string getParamString; //if function takes no arguments, this is null (for now)
-
-            public SubroutineInformation(string s)
+            //string getParamString; //if function takes no arguments, this is null (for now)
+            List<SubroutineArgument> arguments;
+            public SubroutineInformation(List<SubroutineArgument> arguments)
             {
-                getParamString = s;
+                this.arguments = arguments;
             }
+
+            public SubroutineInformation()
+            {
+
+            }
+
+            /// <summary>
+            /// Input is a list of arguments, NOT including the 'getparam' function call.
+            /// eg. "%clock_moto_h,%clock_moto_m,%clock_h"
+            /// </summary>
+            /// <param name="argumentList"></param>
+            public SubroutineInformation(string argumentsAsString)
+            {
+                //since getparam only takes 'output' variables as argument (no complicated expressions), 
+                //we can cheat here and just use string split
+                try
+                {
+                    this.arguments = argumentsAsString.Split(new char[] { ',' })
+                        .Select(x => x.Trim())
+                        .Select(x => new SubroutineArgument(x[0] == '$', x.Substring(1)))
+                        .ToList();
+                }
+                catch
+                {
+                    Console.WriteLine($"Incorrectly formatted argument list: {argumentsAsString}");
+                }
+            }
+
         }
 
         /// <summary>
@@ -126,6 +166,33 @@ namespace PonscripterParser
                 }
             }
 
+            //iterate starting at the label definition until (worst case) the end of file
+            //when a getparam or return is found, the number of parameters is recorded
+            SubroutineInformation GetSubroutineInformation(string[] linesToSearch, LabelInfo label)
+            {
+                for (int i = label.labelLineIndex; i < linesToSearch.Length; i++)
+                {
+                    string s = linesToSearch[i];
+
+                    Match getParamMatch = getParamRegex.Match(s);
+                    Match returnMatch = returnRegex.Match(s);
+
+                    if (getParamMatch.Success)
+                    {
+                        Console.WriteLine($"{label.labelName} arguments are {getParamMatch.Groups[0].Value} [{s}]");
+                        return new SubroutineInformation(getParamMatch.Groups[0].Value);
+                    }
+                    else if (returnMatch.Success)
+                    {
+                        Console.WriteLine($"{label.labelName} takes no arguments");
+                        return new SubroutineInformation();
+                    }
+                }
+
+                //somehow reached end of the document
+                return null;
+            }
+
             //For reach subroutine, determine what arguments (if any) it uses
             //May not work for all cases, but usually getparam is the first call 
             //after the label def so use this method for now.
@@ -139,33 +206,16 @@ namespace PonscripterParser
 
                 Console.WriteLine($"{label.labelName} is a subroutine");
 
-                //iterate starting at the label definition until (worst case) the end of file
-                //when a getparam or return is found, the number of parameters is recorded, then move on to next label
-                for (int i = label.labelLineIndex; i < allLines.Length; i++)
+                SubroutineInformation subInfo = GetSubroutineInformation(allLines, label);
+
+                if(subInfo == null)
                 {
-                    string s = allLines[i];
-
-                    Match getParamMatch = getParamRegex.Match(s);
-                    Match returnMatch = returnRegex.Match(s);
-                    
-                    if (getParamMatch.Success)
-                    {
-                        Console.WriteLine($"{label.labelName} arguments are {s}");
-                        database[label.labelName] = new SubroutineInformation(getParamMatch.Groups[0].Value);
-                        break;
-                    }
-                    else if(returnMatch.Success)
-                    {
-                        Console.WriteLine($"{label.labelName} takes no arguments");
-                        database[label.labelName] = new SubroutineInformation(null);
-                        break;
-                    }
-                    else
-                    {
-                        Console.WriteLine($"ERROR: no return or getparam for subroutine {label.labelName}");
-                    }
+                    Console.WriteLine($"ERROR: no return or getparam for subroutine {label.labelName}");
                 }
-
+                else
+                {
+                    database[label.labelName] = subInfo;
+                }
             }
 
         }
