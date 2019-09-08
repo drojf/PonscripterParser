@@ -1,0 +1,23 @@
+Script = header_block "*define" definition_block "game" "*Start" program_block
+
+--------------
+
+header_block = header_block_line*
+
+header_block_line = ";" header_commands
+
+--------------
+
+definition_block
+
+line = statement (:+ statement) :+? comment <- statements must be separated by ':' if on same line
+
+statement = function_name (,|\s) arg (, arg)* <- note that number of args must be known in advance to parse!
+
+
+--------------
+
+program_block
+
+
+--------------
