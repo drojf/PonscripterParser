@@ -46,6 +46,7 @@
     <Compile Include="LexingMode.cs" />
     <Compile Include="NamedRegex.cs" />
     <Compile Include="OldParser.cs" />
+    <Compile Include="PredefinedFunctionInfoLoader.cs" />
     <Compile Include="Program.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="SemanticRegexes.cs" />

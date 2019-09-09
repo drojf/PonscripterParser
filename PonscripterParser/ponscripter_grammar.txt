@@ -19,5 +19,31 @@ statement = function_name (,|\s) arg (, arg)* <- note that number of args must b
 
 program_block
 
+Normal mode is the same as definition block
+
+Text mode is enetered via a non ascii character OR the ^ character. But this conflicts with ^ strings.
+So need to deteremine whether you are in a function or not in order to correctly parse text/^strings
+
+For example:
+
+dwave_eng is a function taking 2 arguments, followed by text, then an @ (ending text mode), then a :
+dwave_eng 0, ev2_3e816 ^  Chiester Sisters!!^@:
+dwave_eng is a function taking 3 arguments, followed by an argument, then an @, then a :
+dwave_eng 0, ev2_3e816, ^  Chiester Sisters!!^@:
+
+This line is ambiguous unless you know how many arguments `langen` takes.
+langen ^She jumped and jumped and leapt and even flipped in midair, increasing that distance.^\
+
+I think this ambiguity is only for functions which take exactly one argument (as there is no comma before it)
+Otherwise, the comma can be used to indicate whether the next ^^ section is an argument or is a text string.
+
+This is valid as any duplicate ^ in text mode. But if incorrectly treated as a ^string, then would have non-matching ^
+^^ ASDF ^ 
+
+
+There's also the complication of functions taking variable number of arguments. If 
+the above issue can be resolved without knowing exactly the number of arguments, true fucntion
+argument parsing can be postponed to a later pass.
+There are also vararg functions like `csel` which accept an unlimited number of arguments
 
 --------------

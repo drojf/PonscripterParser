@@ -1,8 +1,10 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Runtime.Serialization;
 using System.Text;
+using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 
 namespace PonscripterParser
@@ -32,16 +34,76 @@ namespace PonscripterParser
     }
 
     class CharReader
-    {
+    {   //is \G required at start of regexes?
+        Regex hexColorRegex = new Regex(@"#[0-9abcdef]{6}", RegexOptions.IgnoreCase);
+        Regex numericVariableRegex = new Regex(@"%\w+", RegexOptions.IgnoreCase);
+        Regex stringVariableRegex = new Regex(@"$\w+", RegexOptions.IgnoreCase);
+        Regex arrayRegex = new Regex(@"\?\w+(\[\d+\])+", RegexOptions.IgnoreCase);
         string line;
         int pos;
+        SubroutineDatabase subroutineDatabase;
 
-        public CharReader(string line)
+        public CharReader(string line, SubroutineDatabase subroutineDatabase)
         {
             this.line = line;
+            this.subroutineDatabase = subroutineDatabase;
+            Console.WriteLine($"Full Line [{line}]");
         }
 
-        public Lexeme NextLexeme()
+        public List<Lexeme> ParseSection(bool sectionAllowsText)
+        {
+            List<Lexeme> retLexemes = new List<Lexeme>();
+            while(true)
+            {
+                SkipWhiteSpace();
+
+                if (!HasNext())
+                {
+                    break;
+                }
+
+                char next = Peek();
+
+                if (next == ';')
+                {
+                    retLexemes.Add(PopComment());
+                }
+                else if (next == ':')
+                {
+                    //colons are kind of not used
+                    retLexemes.Add(PopSymbol());
+                }
+                else if (next == '*')
+                {
+                    //always expect a label name after each *
+                    retLexemes.Add(PopSymbol());
+                    retLexemes.Add(PopToken());
+                }
+                else if (charIsWord(next))
+                {
+                    //throw new NotImplementedException();
+                    retLexemes.AddRange(ParseFunction());
+                }
+                else if (sectionAllowsText && next == '^')
+                {
+                    retLexemes.AddRange(ParseText());
+                }
+                else
+                {
+                    //error
+                    throw new Exception($"Unexpected character: {line}");
+                }
+            }
+
+            return retLexemes;
+        }
+
+        public List<Lexeme> ParseText()
+        {
+            throw new NotImplementedException();
+        }
+
+        public List<Lexeme> ParseFunction()
         {
             SkipWhiteSpace();
 
@@ -52,23 +114,79 @@ namespace PonscripterParser
 
             char next = Peek();
 
-            //Need string handling (" string and ^ string)
-            if(next == ';')
+            //parse the function name
+            Lexeme functionNameLexeme = PopToken();
+            List<Lexeme> lexemes = new List<Lexeme> { functionNameLexeme };
+
+            //try to determine how many arguments there are
+            if (subroutineDatabase.TryGetValue(functionNameLexeme.text, out SubroutineInformation subroutineInformation))
             {
-                return PopComment();
-            }
-            else if (charIsWord(next))
-            {
-                return PopToken();
-            }
-            else if (next == '"' || next == '^')
-            {
-                return PopStringLiteral();
+                Console.WriteLine($"Parsing function {functionNameLexeme.text} which has {subroutineInformation.hasArguments} arguments");
+                if (subroutineInformation.hasArguments)
+                {
+                    //parse the first argument if it has more than one argument
+                    //TODO: should proabably group tokens here rather than doing later? not sure....
+                    lexemes.AddRange(PopExpression());
+
+                    SkipWhiteSpace();
+                    while (HasNext())
+                    {
+                        //Just assume there is one argument after each comma
+                        char nextChar = Peek();
+                        if(nextChar != ',')
+                        {
+                            break;
+                        }
+                        lexemes.Add(PopSymbol());
+
+                        //Add the expected expression after each comma
+                        lexemes.AddRange(PopExpression());
+                        SkipWhiteSpace();
+                    }
+                }
             }
             else
             {
-                return PopSymbol();
+                throw new Exception($"Unknown number of args for {functionNameLexeme.text}");
             }
+
+            return lexemes;
+        }
+
+        private List<Lexeme> PopExpression()
+        {
+            SkipWhiteSpace();
+            char next = Peek();
+
+            if (next == '"' || next == '^')
+            {
+                return new List<Lexeme> { PopStringLiteral() };
+            }
+            else if(next == '%')
+            {
+                return new List<Lexeme> { PopRegexOrError(numericVariableRegex, "Failed to match hexColor") };
+            }
+            else if(next == '$')
+            {
+                return new List<Lexeme> { PopRegexOrError(stringVariableRegex, "Failed to match hexColor") };
+            }
+            else if(next == '#')
+            {
+                return new List<Lexeme> { PopRegexOrError(hexColorRegex, "Failed to match hexColor") };
+            }
+            else if(next == '?')
+            {
+                return new List<Lexeme> { PopRegexOrError(arrayRegex, "Failed to match array regex") };
+            }
+            else if(next == '*')
+            {
+                //always expect a label name after each *
+                return new List<Lexeme> { PopSymbol(), PopToken() };
+            }
+
+            return new List<Lexeme> { PopToken() };
+            //TODO: assume an expression is just a token until proper expression handling added
+            //return new List<Lexeme> { PopToken() }; 
         }
 
         private bool HasNext()
@@ -96,12 +214,13 @@ namespace PonscripterParser
 
         private Lexeme PopSymbol()
         {
+            SkipWhiteSpace();
             return new Lexeme(Pop().ToString());
         }
 
-
         private Lexeme PopComment()
         {
+            SkipWhiteSpace();
             Lexeme retval = new Lexeme(this.line.Substring(this.pos));
             this.pos = this.line.Length;
             return retval;
@@ -109,6 +228,7 @@ namespace PonscripterParser
 
         private Lexeme PopToken()
         {
+            SkipWhiteSpace();
             int start = this.pos;
             int length = 0;
             while(HasNext() && charIsWord(Peek()))
@@ -117,11 +237,17 @@ namespace PonscripterParser
                 length++;
             }
 
+            if(length == 0)
+            {
+                throw new Exception($"Expected token on line {this.line}");
+            }
+
             return new Lexeme(this.line.Substring(start, length));
         }
 
         private Lexeme PopStringLiteral()
         {
+            SkipWhiteSpace();
             int start = this.pos;
 
             //Take the first delimiter off
@@ -142,6 +268,37 @@ namespace PonscripterParser
             throw new Exception("Missing string delimiter");
         }
 
+        private Lexeme PopRegexOrError(Regex r, string errormsg)
+        {
+            if (PopRegex(r, out Lexeme lexeme))
+            {
+                return lexeme;
+            }
+            else
+            {
+                throw new Exception(errormsg);
+            }
+        }
+
+        private bool PopRegex(Regex r, out Lexeme lexeme)
+        {
+            SkipWhiteSpace();
+            int start = this.pos;
+
+            Match match = r.Match(this.line, start);
+            if (match.Success)
+            {
+                this.pos += match.Length;
+                lexeme = new Lexeme(match.Value);
+                return true;
+            }
+            else
+            {
+                lexeme = null;
+                return false;
+            }
+        }
+
         private void SkipWhiteSpace()
         {
             while (HasNext() && char.IsWhiteSpace(Peek()))
@@ -158,21 +315,14 @@ namespace PonscripterParser
 
     class Program
     {
-        static void ParseLine(string line, bool isProgramBlock)
+        static void ParseLine(string line, SubroutineDatabase subroutineDatabase, bool isProgramBlock)
         {
-            CharReader cr = new CharReader(line);
-            while(true)
+            CharReader cr = new CharReader(line, subroutineDatabase);
+            List<Lexeme> l = cr.ParseSection(isProgramBlock);
+            /*foreach(Lexeme s in l)
             {
-                Lexeme l = cr.NextLexeme();
-                if(l == null)
-                {
-                    break;
-                }
-                else
-                {
-                    Console.WriteLine(l.text);
-                }
-            }
+                Console.WriteLine(s.text);
+            }*/
         }
 
         static void PrintLines(string[] lines)
@@ -256,21 +406,37 @@ namespace PonscripterParser
             return new CodeBlocks(header, definition, program);
         }
 
-        static void RunParser(string[] lines)
+        static void RunParser(string[] lines, SubroutineDatabase subroutineDatabase)
         {
             CodeBlocks cbs = ReadSegments(lines);
 
             //PrintLines(cbs.definition);
 
             foreach (string line in cbs.definition) {
-                ParseLine(line, isProgramBlock: false);
+                ParseLine(line, subroutineDatabase, isProgramBlock: false);
             }
         }
 
         static void Main(string[] args)
         {
+
+
+
             string[] lines = LoadScript();
-            RunParser(lines);
+
+            SubroutineDatabase database = new SubroutineDatabase();
+            SubroutineDatabase functionDatabase = UserFunctionScanner.buildInitialUserList(lines, database);
+
+            // Add predefined functions. If a function already exists, it will be added with an '_' prefix
+            PredefinedFunctionInfoLoader.load("function_list.txt", database);
+
+
+            foreach(KeyValuePair<string, SubroutineInformation> kvp in database.GetRawDict())
+            {
+                Console.WriteLine($"{kvp.Key}: {kvp.Value.hasArguments}");
+            }
+
+            RunParser(lines, database);
 
             Console.WriteLine("----------------\nProgram Finished");
             Console.ReadKey();

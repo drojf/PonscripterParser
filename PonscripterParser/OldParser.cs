@@ -290,7 +290,7 @@ namespace PonscripterParser
             return tokens;
         }
 
-        static void Run()
+        /*static void Run()
         {
             //allow UTF-8 characters to be shown in console
             Console.OutputEncoding = Encoding.UTF8;
@@ -317,10 +317,10 @@ namespace PonscripterParser
                                     debug_allText.AppendLine(t.tokenString);
                                     break;
 
-                                    /*case TokenType.ClickWait:
-                                    case TokenType.PageWait:
-                                        allText.AppendLine();
-                                        break;*/
+                                    //case TokenType.ClickWait:
+                                    //case TokenType.PageWait:
+                                      //  allText.AppendLine();
+                                       // break;
                             }
                         }
                     }
@@ -334,6 +334,6 @@ namespace PonscripterParser
 
             Console.WriteLine("Program Finished");
             Console.ReadKey();
-        }
+        }*/
     }
 }
