@@ -37,8 +37,32 @@ namespace PonscripterParser
     {   //is \G required at start of regexes?
         Regex hexColorRegex = new Regex(@"#[0-9abcdef]{6}", RegexOptions.IgnoreCase);
         Regex numericVariableRegex = new Regex(@"%\w+", RegexOptions.IgnoreCase);
-        Regex stringVariableRegex = new Regex(@"$\w+", RegexOptions.IgnoreCase);
-        Regex arrayRegex = new Regex(@"\?\w+(\[\d+\])+", RegexOptions.IgnoreCase);
+        Regex stringVariableRegex = new Regex(@"\$\w+", RegexOptions.IgnoreCase);
+        Regex arrayRegex = new Regex(@"\?\w+(\[\w+\])+", RegexOptions.IgnoreCase);
+        Regex labelRegex = new Regex(@"\*\w+", RegexOptions.IgnoreCase);
+        Regex numericLiteralRegex = new Regex(@"-?\d+", RegexOptions.IgnoreCase);
+
+        List<Regex> operatorRegexList;
+
+        //TODO: support fchk command (`if fchk "file\path.bmp"`)
+        string[] operatorList =
+        {
+            @"\+",
+            @"-",
+            @"\*",
+            @"/",
+            @">",
+            @"<",
+            @"=",
+            @">=",
+            @"<=",
+            @"==",
+            @"!=",
+            @"<>",
+            @"&&",
+            //"\|\|", not sure if "\|\|" is supported
+        };
+
         string line;
         int pos;
         SubroutineDatabase subroutineDatabase;
@@ -47,6 +71,8 @@ namespace PonscripterParser
         {
             this.line = line;
             this.subroutineDatabase = subroutineDatabase;
+            this.operatorRegexList = operatorList.Select(op => new Regex(op)).ToList();
+
             Console.WriteLine($"Full Line [{line}]");
         }
 
@@ -79,14 +105,23 @@ namespace PonscripterParser
                     retLexemes.Add(PopSymbol());
                     retLexemes.Add(PopToken());
                 }
+                else if(next == '~')
+                {
+                    //jumpf target, unless found in text region
+                    retLexemes.Add(PopSymbol());
+                }
                 else if (charIsWord(next))
                 {
                     //throw new NotImplementedException();
-                    retLexemes.AddRange(ParseFunction());
+                    retLexemes.AddRange(ParseWord());
                 }
                 else if (sectionAllowsText && next == '^')
                 {
-                    retLexemes.AddRange(ParseText());
+                    retLexemes.Add(PopDialogue());
+                }
+                else if (sectionAllowsText && (next == '@' || next == '\\' || next == '/'))
+                {
+                    retLexemes.Add(PopSymbol());
                 }
                 else
                 {
@@ -98,30 +133,49 @@ namespace PonscripterParser
             return retLexemes;
         }
 
-        public List<Lexeme> ParseText()
+        public List<Lexeme> ParseWord()
         {
-            throw new NotImplementedException();
+            //parse the function or keyword name
+            Lexeme functionNameLexeme = PopToken();
+            string fn = functionNameLexeme.text;
+            List<Lexeme> lexemes = new List<Lexeme> { functionNameLexeme };
+
+            //check for keywords
+            if(fn == "if" || fn == "notif")
+            {
+                lexemes.AddRange(ParseIfCondition());
+            }
+            else
+            {
+                lexemes.AddRange(ParseFunctionArguments(fn));
+            }
+
+            return lexemes;
         }
 
-        public List<Lexeme> ParseFunction()
+        public List<Lexeme> ParseIfCondition()
         {
+            return PopExpression();
+        }
+
+        public List<Lexeme> ParseFunctionArguments(string functionName)
+        {
+            List<Lexeme> lexemes = new List<Lexeme>();
+
             SkipWhiteSpace();
 
+            //If have reached the end of line/nothing left to parse, just return no arguments
             if (!HasNext())
             {
-                return null;
+                return lexemes;
             }
 
             char next = Peek();
 
-            //parse the function name
-            Lexeme functionNameLexeme = PopToken();
-            List<Lexeme> lexemes = new List<Lexeme> { functionNameLexeme };
-
             //try to determine how many arguments there are
-            if (subroutineDatabase.TryGetValue(functionNameLexeme.text, out SubroutineInformation subroutineInformation))
+            if (subroutineDatabase.TryGetValue(functionName, out SubroutineInformation subroutineInformation))
             {
-                Console.WriteLine($"Parsing function {functionNameLexeme.text} which has {subroutineInformation.hasArguments} arguments");
+                Console.WriteLine($"Parsing function {functionName} which has {subroutineInformation.hasArguments} arguments");
                 if (subroutineInformation.hasArguments)
                 {
                     //parse the first argument if it has more than one argument
@@ -131,9 +185,10 @@ namespace PonscripterParser
                     SkipWhiteSpace();
                     while (HasNext())
                     {
-                        //Just assume there is one argument after each comma
+                        //Just assume there is one argument after each comma 
+                        //(the engine will actually accept spaces instead of commas)
                         char nextChar = Peek();
-                        if(nextChar != ',')
+                        if (nextChar != ',')
                         {
                             break;
                         }
@@ -147,7 +202,7 @@ namespace PonscripterParser
             }
             else
             {
-                throw new Exception($"Unknown number of args for {functionNameLexeme.text}");
+                throw new Exception($"Unknown number of args for {functionName}");
             }
 
             return lexemes;
@@ -155,38 +210,83 @@ namespace PonscripterParser
 
         private List<Lexeme> PopExpression()
         {
+            //TODO: assume an expression is just a token until proper expression handling added
+            //return new List<Lexeme> { PopToken() }; 
+            List<Lexeme> lexemes = new List<Lexeme> { PopExpressionData() };
+
+            // Pop subsequent operator expression sequences (no support parenthesis '(' or ')' yet)
+            while(true)
+            {
+                if(TryPopExpressionOperator(out Lexeme lexeme))
+                {
+                    lexemes.Add(lexeme);
+                }
+                else
+                {
+                    break;
+                }
+
+                lexemes.Add(PopExpressionData());
+            }
+
+            return lexemes;
+        }
+
+
+        private bool TryPopExpressionOperator(out Lexeme expressionOperator)
+        {
+            SkipWhiteSpace();
+
+            foreach(Regex r in this.operatorRegexList)
+            {
+                if (PopRegex(r, out Lexeme lexeme))
+                {
+                    expressionOperator = lexeme;
+                    return true;
+                }
+            }
+
+            expressionOperator = null;
+            return false;
+        }
+
+        // Pop the operand part of an expression like variables, string literals, array literals, labels etc.
+        private Lexeme PopExpressionData()
+        {
             SkipWhiteSpace();
             char next = Peek();
 
             if (next == '"' || next == '^')
             {
-                return new List<Lexeme> { PopStringLiteral() };
+                return PopStringLiteral();
             }
-            else if(next == '%')
+            else if (next == '%')
             {
-                return new List<Lexeme> { PopRegexOrError(numericVariableRegex, "Failed to match hexColor") };
+                return PopRegexOrError(numericVariableRegex, "Failed to match (%) Numeric Variable");
             }
-            else if(next == '$')
+            else if (next == '$')
             {
-                return new List<Lexeme> { PopRegexOrError(stringVariableRegex, "Failed to match hexColor") };
+                return  PopRegexOrError(stringVariableRegex, "Failed to match ($) String Variable");
             }
-            else if(next == '#')
+            else if (next == '#')
             {
-                return new List<Lexeme> { PopRegexOrError(hexColorRegex, "Failed to match hexColor") };
+                return PopRegexOrError(hexColorRegex, "Failed to match hexColor");
             }
-            else if(next == '?')
+            else if (next == '?')
             {
-                return new List<Lexeme> { PopRegexOrError(arrayRegex, "Failed to match array regex") };
+                return  PopRegexOrError(arrayRegex, "Failed to match array regex");
             }
-            else if(next == '*')
+            else if (next == '*')
             {
                 //always expect a label name after each *
-                return new List<Lexeme> { PopSymbol(), PopToken() };
+                return PopRegexOrError(labelRegex, "Failed to match array regex");
+            }
+            else if (next == '-' || char.IsDigit(next))
+            {
+                return PopRegexOrError(numericLiteralRegex, "Failed to match numeric literal in expression");
             }
 
-            return new List<Lexeme> { PopToken() };
-            //TODO: assume an expression is just a token until proper expression handling added
-            //return new List<Lexeme> { PopToken() }; 
+            return PopToken();
         }
 
         private bool HasNext()
@@ -299,6 +399,29 @@ namespace PonscripterParser
             }
         }
 
+        private Lexeme PopDialogue()
+        {
+            int start = this.pos;
+            int length = 0;
+
+            while (HasNext())
+            {
+                char next = Peek();
+
+                if(next == '@' || next == '\\' || next == '/')
+                {
+                    break;
+                }
+                else
+                {
+                    Pop();
+                    length++;
+                }
+            }
+
+            return new Lexeme(this.line.Substring(start, length));
+        }
+
         private void SkipWhiteSpace()
         {
             while (HasNext() && char.IsWhiteSpace(Peek()))
@@ -310,6 +433,11 @@ namespace PonscripterParser
         private bool charIsWord(char c)
         {
             return char.IsLetterOrDigit(c) || c == '_';
+        }
+
+        private string GetUnparsedLine()
+        {
+            return this.line.Substring(this.pos);
         }
     }
 
@@ -410,10 +538,9 @@ namespace PonscripterParser
         {
             CodeBlocks cbs = ReadSegments(lines);
 
-            //PrintLines(cbs.definition);
-
-            foreach (string line in cbs.definition) {
-                ParseLine(line, subroutineDatabase, isProgramBlock: false);
+            foreach (string line in cbs.program)
+            {
+                ParseLine(line, subroutineDatabase, isProgramBlock: true);
             }
         }
 
