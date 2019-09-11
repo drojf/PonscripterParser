@@ -4,10 +4,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
-using System.Runtime.Serialization;
-using System.Text;
 using System.Text.RegularExpressions;
-using System.Threading.Tasks;
 
 namespace PonscripterParser
 {
@@ -45,7 +42,7 @@ namespace PonscripterParser
         Regex hexColorRegex = RegexFromStart(@"#[0-9abcdef]{6}", RegexOptions.IgnoreCase);
         Regex numericVariableRegex = RegexFromStart(@"%\w+", RegexOptions.IgnoreCase);
         Regex stringVariableRegex = RegexFromStart(@"\$\w+", RegexOptions.IgnoreCase);
-        Regex arrayRegex = RegexFromStart(@"\?\w+(\[\w+\])+", RegexOptions.IgnoreCase);
+        Regex arrayRegex = RegexFromStart(@"\?\w+(\[%?\w+\])+", RegexOptions.IgnoreCase); //TODO: arrays are not lexed properly, they just use this regex!
         Regex labelRegex = RegexFromStart(@"\*\w+", RegexOptions.IgnoreCase);
         Regex numericLiteralRegex = RegexFromStart(@"-?\d+", RegexOptions.IgnoreCase);
 
@@ -60,6 +57,13 @@ namespace PonscripterParser
         //Special case for partial divide expression/page wait ambiguity like "langen:voicedelay 1240/"
         //TODO: decide if this is a bug or not
         Regex DividePageWaitAmbiguityRegex = RegexFromStart(@"/\s*(;.*)?$", RegexOptions.IgnoreCase);
+
+        //Jumpf target ~ regex
+        Regex JumpfTarget = RegexFromStart(@"\s*~\s*$", RegexOptions.IgnoreCase);
+
+        //Ponscripter Formatting tag region
+        Regex ponscripterFormattingTagRegion = RegexFromStart(@"~[^~]*~", RegexOptions.IgnoreCase);
+
 
         List<Regex> operatorRegexList;
 
@@ -125,10 +129,13 @@ namespace PonscripterParser
                     retLexemes.Add(PopSymbol());
                     retLexemes.Add(PopToken());
                 }
-                else if(next == '~')
+                else if(PopRegex(JumpfTarget, out Lexeme jumpfTargetLexeme))
                 {
-                    //jumpf target, unless found in text region
-                    retLexemes.Add(PopSymbol());
+                    retLexemes.Add(jumpfTargetLexeme);
+                }
+                else if(PopRegex(ponscripterFormattingTagRegion, out Lexeme formattingTagRegion))
+                {
+                    retLexemes.Add(formattingTagRegion);
                 }
                 else if (charIsWord(next))
                 {
@@ -141,8 +148,13 @@ namespace PonscripterParser
                 }
                 else if(sectionAllowsText && (next == '`'))
                 {
-                    //handle single-byte text mode
-                    throw new NotImplementedException();
+                    //For '`': Pretend single-byte text mode is just normal text mode for now...
+                    retLexemes.Add(PopDialogue());
+                }
+                else if(sectionAllowsText && (next == '#'))
+                {
+                    //For '#': If you encounter a color tag at top level, most likely it's for colored text.
+                    retLexemes.Add(PopHexColor());
                 }
                 else if(sectionAllowsText && next == '$')
                 {
@@ -215,29 +227,48 @@ namespace PonscripterParser
 
         public List<Lexeme> ParseForBody()
         {
+            Lexeme matchNumericValue()
+            {
+                SkipWhiteSpace();
+                if (Peek() == '%')
+                {
+                    return PopNumericVariable();
+                }
+                else if(charIsWord(Peek()))
+                {
+                    //most likely a numalias
+                    return PopToken();
+                }
+                else
+                {
+                    return PopNumericLiteral();
+                }
+            }
+
             List<Lexeme> lexemes = new List<Lexeme>();
 
-            //numeric variable
+            //numeric variable to be assigned to
             lexemes.Add(PopNumericVariable());
 
-            //literal equals sign
+            //literal equals sign (in this case, it means assignment)
             lexemes.Add(PopRegexOrError(ForEqualsRegex, "Missing '=' in for loop"));
 
-            //numeric literal
-            lexemes.Add(PopNumericLiteral());
+            //numeric literal or variable
+            matchNumericValue();
 
             //literal 'to'
             lexemes.Add(PopRegexOrError(ForToRegex, "Missing 'to' in for loop"));
 
-            //numeric literal
-            lexemes.Add(PopNumericLiteral());
+            //numeric literal or variable
+            matchNumericValue();
 
-            if(HasNext() && Peek() == 's')
+            if (HasNext() && Peek() == 's')
             {
                 //literal 'step'
                 lexemes.Add(PopRegexOrError(ForStepRegex, "Missing 'to' in for loop"));
 
-                lexemes.Add(PopNumericLiteral());
+                //numeric literal or variable
+                matchNumericValue();
             }
 
             return lexemes;
@@ -255,7 +286,14 @@ namespace PonscripterParser
                 return lexemes;
             }
 
-            char next = Peek();
+            //If there is a comma after the function name, just ignore it
+            if(Peek() == ',')
+            {
+                //Keep the comma for now.
+                lexemes.Add(PopSymbol());
+                SkipWhiteSpace();
+            }
+
 
             //try to determine how many arguments there are
             if (subroutineDatabase.TryGetValue(functionName, out SubroutineInformation subroutineInformation))
@@ -350,6 +388,11 @@ namespace PonscripterParser
         }
 
         // Pop the operand part of an expression like variables, string literals, array literals, labels etc.
+
+        //TODO: need to support expression datas like: mov $?r[kin][0],"bmp\r_click\cha_btn\non"
+        //possibly any combination of $?, $%tmp, if %%Free1 = 0 jumpf etc.
+        //Maybe just allow lexing anything which looks reasonable, and validate it at a later stage
+        //Also need to update if/for statements to allow the use of these types of expression data
         private Lexeme PopExpressionData()
         {
             SkipWhiteSpace();
@@ -369,7 +412,7 @@ namespace PonscripterParser
             }
             else if (next == '#')
             {
-                return PopRegexOrError(hexColorRegex, "Failed to match hexColor");
+                return PopHexColor();
             }
             else if (next == '?')
             {
@@ -403,7 +446,12 @@ namespace PonscripterParser
 
         private Lexeme PopNumericLiteral()
         {
-            return PopRegexOrError(numericLiteralRegex, "Failed to match numeric literal in expression");
+            return PopRegexOrError(numericLiteralRegex, "Failed to match numeric literal");
+        }
+
+        private Lexeme PopHexColor()
+        {
+            return PopRegexOrError(hexColorRegex, "Failed to match hex color");
         }
 
 
@@ -697,10 +745,12 @@ namespace PonscripterParser
             // Add predefined functions. If a function already exists, it will be added with an '_' prefix
             PredefinedFunctionInfoLoader.load("function_list.txt", database);
 
-            // Add some extra functions
-
+            // Add some extra pre-defined functions
             database["langen"] = new SubroutineInformation(false);
             database["langjp"] = new SubroutineInformation(false);
+
+            database["endroll"] = new SubroutineInformation(true);
+            database["steamsetachieve"] = new SubroutineInformation(true);
 
 
             foreach (KeyValuePair<string, SubroutineInformation> kvp in database.GetRawDict())
