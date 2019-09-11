@@ -34,12 +34,6 @@ namespace PonscripterParser
             hasArguments = arguments.Count > 0;
         }
 
-        public SubroutineInformation()
-        {
-            this.arguments = new List<SubroutineArgument>();
-            hasArguments = true;
-        }
-
         public SubroutineInformation(bool hasArguments)
         {
             this.arguments = null; //TODO: figure out a better way to do this!
@@ -212,7 +206,7 @@ namespace PonscripterParser
                     else if (returnMatch.Success)
                     {
                         Console.WriteLine($"{label.labelName} takes no arguments");
-                        return new SubroutineInformation();
+                        return new SubroutineInformation(hasArguments: false);
                     }
                 }
 

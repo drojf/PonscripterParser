@@ -1,4 +1,6 @@
-﻿using System;
+﻿//Please see UncleMion's POnscripter Documentation here: https://www.drojf.com/nscripter/NScripter_API_Reference.html (mirror of website as original was down)
+
+using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -31,22 +33,46 @@ namespace PonscripterParser
         {
             this.text = text;
         }
+
+        public override string ToString()
+        {
+            return this.text;
+        }
     }
 
     class CharReader
     {   //is \G required at start of regexes?
-        Regex hexColorRegex = new Regex(@"#[0-9abcdef]{6}", RegexOptions.IgnoreCase);
-        Regex numericVariableRegex = new Regex(@"%\w+", RegexOptions.IgnoreCase);
-        Regex stringVariableRegex = new Regex(@"\$\w+", RegexOptions.IgnoreCase);
-        Regex arrayRegex = new Regex(@"\?\w+(\[\w+\])+", RegexOptions.IgnoreCase);
-        Regex labelRegex = new Regex(@"\*\w+", RegexOptions.IgnoreCase);
-        Regex numericLiteralRegex = new Regex(@"-?\d+", RegexOptions.IgnoreCase);
+        Regex hexColorRegex = RegexFromStart(@"#[0-9abcdef]{6}", RegexOptions.IgnoreCase);
+        Regex numericVariableRegex = RegexFromStart(@"%\w+", RegexOptions.IgnoreCase);
+        Regex stringVariableRegex = RegexFromStart(@"\$\w+", RegexOptions.IgnoreCase);
+        Regex arrayRegex = RegexFromStart(@"\?\w+(\[\w+\])+", RegexOptions.IgnoreCase);
+        Regex labelRegex = RegexFromStart(@"\*\w+", RegexOptions.IgnoreCase);
+        Regex numericLiteralRegex = RegexFromStart(@"-?\d+", RegexOptions.IgnoreCase);
+
+        //For loop regexes
+        Regex ForToRegex = RegexFromStart(@"to", RegexOptions.IgnoreCase);
+        Regex ForEqualsRegex = RegexFromStart(@"=", RegexOptions.IgnoreCase);
+        Regex ForStepRegex = RegexFromStart(@"step", RegexOptions.IgnoreCase);
+
+        //Text line end check
+        Regex TextLineEndRegex = RegexFromStart(@"(/|\\)\s*(;.*)?$", RegexOptions.IgnoreCase);
+
+        //Special case for partial divide expression/page wait ambiguity like "langen:voicedelay 1240/"
+        //TODO: decide if this is a bug or not
+        Regex DividePageWaitAmbiguityRegex = RegexFromStart(@"/\s*(;.*)?$", RegexOptions.IgnoreCase);
 
         List<Regex> operatorRegexList;
 
         //TODO: support fchk command (`if fchk "file\path.bmp"`)
+        //NOTE: order here matters - must match from longest to shortest to prevent '=' matching '=='
         string[] operatorList =
         {
+            @">=",
+            @"<=",
+            @"==",
+            @"!=",
+            @"<>",
+            @"&&",
             @"\+",
             @"-",
             @"\*",
@@ -54,12 +80,6 @@ namespace PonscripterParser
             @">",
             @"<",
             @"=",
-            @">=",
-            @"<=",
-            @"==",
-            @"!=",
-            @"<>",
-            @"&&",
             //"\|\|", not sure if "\|\|" is supported
         };
 
@@ -71,7 +91,7 @@ namespace PonscripterParser
         {
             this.line = line;
             this.subroutineDatabase = subroutineDatabase;
-            this.operatorRegexList = operatorList.Select(op => new Regex(op)).ToList();
+            this.operatorRegexList = operatorList.Select(op => RegexFromStart(op, RegexOptions.IgnoreCase)).ToList();
 
             Console.WriteLine($"Full Line [{line}]");
         }
@@ -115,18 +135,47 @@ namespace PonscripterParser
                     //throw new NotImplementedException();
                     retLexemes.AddRange(ParseWord());
                 }
-                else if (sectionAllowsText && next == '^')
+                else if (sectionAllowsText && (next == '^' || next == '!' || next > 255))
                 {
                     retLexemes.Add(PopDialogue());
                 }
+                else if(sectionAllowsText && (next == '`'))
+                {
+                    //handle single-byte text mode
+                    throw new NotImplementedException();
+                }
+                else if(sectionAllowsText && next == '$')
+                {
+                    //This is actually when a string is printed like: 
+                    //mov $Free1,"Chasan、Arel、Phorlakh、そしてTaliahad。"
+                    //langjp: dwave_jp 0, mar_1e562_1:$Free1@
+                    retLexemes.Add(PopStringVariable());
+                }
+                //else if(sectionAllowsText && next == '%')
+                //{
+                    //This is actually when a number is printed like: 
+                    //mov $Free1,"Chasan、Arel、Phorlakh、そしてTaliahad。"
+                    //langjp: dwave_jp 0, mar_1e562_1:$Free1@
+                    //retLexemes.Add(PopStringLiteral());
+                //}
                 else if (sectionAllowsText && (next == '@' || next == '\\' || next == '/'))
                 {
+                    retLexemes.Add(PopSymbol());
+                }
+                else if (sectionAllowsText && (next == '\''))
+                {
+                    PrintLexingWarning($"WARNING: Text-mode possibly entered unintentionally from character '{next}' (ascii: {(int) next})!");
+                    retLexemes.Add(PopDialogue());
+                }
+                else if(next <= 8)
+                {
+                    PrintLexingWarning($"WARNING: Got control character '{next}' (ascii: {(int)next}), which will be ignored!");
                     retLexemes.Add(PopSymbol());
                 }
                 else
                 {
                     //error
-                    throw new Exception($"Unexpected character: {line}");
+                    ThrowLexingException("Unexpected character at top level");
                 }
             }
 
@@ -139,11 +188,16 @@ namespace PonscripterParser
             Lexeme functionNameLexeme = PopToken();
             string fn = functionNameLexeme.text;
             List<Lexeme> lexemes = new List<Lexeme> { functionNameLexeme };
+            Console.WriteLine($"Function name {fn}");
 
             //check for keywords
             if(fn == "if" || fn == "notif")
             {
                 lexemes.AddRange(ParseIfCondition());
+            }
+            else if(fn == "for")
+            {
+                lexemes.AddRange(ParseForBody());
             }
             else
             {
@@ -155,7 +209,38 @@ namespace PonscripterParser
 
         public List<Lexeme> ParseIfCondition()
         {
+            Console.WriteLine("Parsing 'if' condition");
             return PopExpression();
+        }
+
+        public List<Lexeme> ParseForBody()
+        {
+            List<Lexeme> lexemes = new List<Lexeme>();
+
+            //numeric variable
+            lexemes.Add(PopNumericVariable());
+
+            //literal equals sign
+            lexemes.Add(PopRegexOrError(ForEqualsRegex, "Missing '=' in for loop"));
+
+            //numeric literal
+            lexemes.Add(PopNumericLiteral());
+
+            //literal 'to'
+            lexemes.Add(PopRegexOrError(ForToRegex, "Missing 'to' in for loop"));
+
+            //numeric literal
+            lexemes.Add(PopNumericLiteral());
+
+            if(HasNext() && Peek() == 's')
+            {
+                //literal 'step'
+                lexemes.Add(PopRegexOrError(ForStepRegex, "Missing 'to' in for loop"));
+
+                lexemes.Add(PopNumericLiteral());
+            }
+
+            return lexemes;
         }
 
         public List<Lexeme> ParseFunctionArguments(string functionName)
@@ -180,7 +265,9 @@ namespace PonscripterParser
                 {
                     //parse the first argument if it has more than one argument
                     //TODO: should proabably group tokens here rather than doing later? not sure....
-                    lexemes.AddRange(PopExpression());
+                    List<Lexeme> firstArg = PopExpression();
+                    lexemes.AddRange(firstArg);
+                    //Console.WriteLine($"First argument {firstArg}");
 
                     SkipWhiteSpace();
                     while (HasNext())
@@ -192,17 +279,21 @@ namespace PonscripterParser
                         {
                             break;
                         }
-                        lexemes.Add(PopSymbol());
+                        Lexeme symbol = PopSymbol();
+                        lexemes.Add(symbol);
+                        //Console.WriteLine($"Symbol: {symbol}");
 
                         //Add the expected expression after each comma
-                        lexemes.AddRange(PopExpression());
+                        List<Lexeme> expression = PopExpression();
+                        lexemes.AddRange(expression);
+                        //Console.WriteLine($"Symbol: {expression}");
                         SkipWhiteSpace();
                     }
                 }
             }
             else
             {
-                throw new Exception($"Unknown number of args for {functionName}");
+                ThrowLexingException($"Unknown num args for function '{functionName}'");
             }
 
             return lexemes;
@@ -217,6 +308,13 @@ namespace PonscripterParser
             // Pop subsequent operator expression sequences (no support parenthesis '(' or ')' yet)
             while(true)
             {
+                //Due to ambiguity with the pagewait operator ('/') and the divide operator ('/'),
+                //Assume that the expression has ended if all that is left on the line is a '/'
+                if(DividePageWaitAmbiguityRegex.IsMatch(this.line, this.pos))
+                {
+                    break;
+                }
+
                 if(TryPopExpressionOperator(out Lexeme lexeme))
                 {
                     lexemes.Add(lexeme);
@@ -226,7 +324,7 @@ namespace PonscripterParser
                     break;
                 }
 
-                lexemes.Add(PopExpressionData());
+                lexemes.Add(PrintTee("Popped Expression Data", PopExpressionData()));
             }
 
             return lexemes;
@@ -242,6 +340,7 @@ namespace PonscripterParser
                 if (PopRegex(r, out Lexeme lexeme))
                 {
                     expressionOperator = lexeme;
+                    Console.WriteLine($"Popped Expression Operator {lexeme}");
                     return true;
                 }
             }
@@ -262,11 +361,11 @@ namespace PonscripterParser
             }
             else if (next == '%')
             {
-                return PopRegexOrError(numericVariableRegex, "Failed to match (%) Numeric Variable");
+                return PopNumericVariable();
             }
             else if (next == '$')
             {
-                return  PopRegexOrError(stringVariableRegex, "Failed to match ($) String Variable");
+                return PopStringVariable();
             }
             else if (next == '#')
             {
@@ -283,11 +382,30 @@ namespace PonscripterParser
             }
             else if (next == '-' || char.IsDigit(next))
             {
-                return PopRegexOrError(numericLiteralRegex, "Failed to match numeric literal in expression");
+                return PopNumericLiteral();
             }
 
+            //this is probably a numalias or special word (like movie option "nosound")
             return PopToken();
+
+            //throw GetLexingException("Failed to pop expression data");
         }
+
+        private Lexeme PopNumericVariable()
+        {
+            return PopRegexOrError(numericVariableRegex, "Failed to match (%) Numeric Variable");
+        }
+
+        private Lexeme PopStringVariable()
+        {
+            return PopRegexOrError(stringVariableRegex, "Failed to match ($) String Variable");
+        }
+
+        private Lexeme PopNumericLiteral()
+        {
+            return PopRegexOrError(numericLiteralRegex, "Failed to match numeric literal in expression");
+        }
+
 
         private bool HasNext()
         {
@@ -339,7 +457,7 @@ namespace PonscripterParser
 
             if(length == 0)
             {
-                throw new Exception($"Expected token on line {this.line}");
+                ThrowLexingException($"PopToken() Failed");
             }
 
             return new Lexeme(this.line.Substring(start, length));
@@ -408,7 +526,7 @@ namespace PonscripterParser
             {
                 char next = Peek();
 
-                if(next == '@' || next == '\\' || next == '/')
+                if(next == '@' || TextLineEndRegex.IsMatch(this.line, start))
                 {
                     break;
                 }
@@ -432,12 +550,34 @@ namespace PonscripterParser
 
         private bool charIsWord(char c)
         {
-            return char.IsLetterOrDigit(c) || c == '_';
+            return c <= 255 && (char.IsLetterOrDigit(c) || c == '_');
         }
 
-        private string GetUnparsedLine()
+        private void ThrowLexingException(string message)
         {
-            return this.line.Substring(this.pos);
+            throw GetLexingException(message);
+        }
+
+        private Exception GetLexingException(string message)
+        {
+            throw new Exception(PrintLexingWarning(message));
+        }
+        private string PrintLexingWarning(string message)
+        {
+            string fullMessage = $"{message} From:{this.line.Substring(this.pos)}";
+            Console.WriteLine(fullMessage);
+            return fullMessage;
+        }
+
+        private static Regex RegexFromStart(string s, RegexOptions options)
+        {
+            return new Regex(@"\G" + s, options);
+        }
+
+        private static Lexeme PrintTee(string message, Lexeme l)
+        {
+            Console.WriteLine($"{message} '{l}'");
+            return l;
         }
     }
 
@@ -557,8 +697,13 @@ namespace PonscripterParser
             // Add predefined functions. If a function already exists, it will be added with an '_' prefix
             PredefinedFunctionInfoLoader.load("function_list.txt", database);
 
+            // Add some extra functions
 
-            foreach(KeyValuePair<string, SubroutineInformation> kvp in database.GetRawDict())
+            database["langen"] = new SubroutineInformation(false);
+            database["langjp"] = new SubroutineInformation(false);
+
+
+            foreach (KeyValuePair<string, SubroutineInformation> kvp in database.GetRawDict())
             {
                 Console.WriteLine($"{kvp.Key}: {kvp.Value.hasArguments}");
             }
