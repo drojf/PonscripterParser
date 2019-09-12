@@ -3,8 +3,6 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
-using System.Linq;
-using System.Text.RegularExpressions;
 
 namespace PonscripterParser
 {
@@ -22,11 +20,11 @@ namespace PonscripterParser
         }
     }
 
-    class Lexeme
+    class LexemeOld
     {
         public string text;
 
-        public Lexeme(string text)
+        public LexemeOld(string text)
         {
             this.text = text;
         }
@@ -37,595 +35,49 @@ namespace PonscripterParser
         }
     }
 
-    class CharReader
-    {   //is \G required at start of regexes?
-        Regex hexColorRegex = RegexFromStart(@"#[0-9abcdef]{6}", RegexOptions.IgnoreCase);
-        Regex numericVariableRegex = RegexFromStart(@"%\w+", RegexOptions.IgnoreCase);
-        Regex stringVariableRegex = RegexFromStart(@"\$\w+", RegexOptions.IgnoreCase);
-        Regex arrayRegex = RegexFromStart(@"\?\w+(\[%?\w+\])+", RegexOptions.IgnoreCase); //TODO: arrays are not lexed properly, they just use this regex!
-        Regex labelRegex = RegexFromStart(@"\*\w+", RegexOptions.IgnoreCase);
-        Regex numericLiteralRegex = RegexFromStart(@"-?\d+", RegexOptions.IgnoreCase);
+    enum LexemeType
+    {
+        WHITESPACE,
+        COMMA,
+        COMMENT,
+        COLON,
+        LABEL,
+        JUMPF_TARGET,
+        FORMATTING_TAG,
+        HEX_COLOR,
+        UNHANDLED_CONTROL_CHAR,
+        IF,
+        NOT_IF,
+        FOR,
+        FUNCTION,
+        NUMERIC_LITERAL,
+        STRING_LITERAL,
+        HAT_STRING_LITERAL,
+        NUM_ALIAS,
+        ALIAS,
+        NUMERIC_REFERENCE,
+        STRING_REFERENCE,
+        ARRAY_REFERENCE,
+        LBRACKET,
+        RBRACKET,
+        OPERATOR,//should do this properly later
+    }
 
-        //For loop regexes
-        Regex ForToRegex = RegexFromStart(@"to", RegexOptions.IgnoreCase);
-        Regex ForEqualsRegex = RegexFromStart(@"=", RegexOptions.IgnoreCase);
-        Regex ForStepRegex = RegexFromStart(@"step", RegexOptions.IgnoreCase);
-
-        //Text line end check
-        Regex TextLineEndRegex = RegexFromStart(@"(/|\\)\s*(;.*)?$", RegexOptions.IgnoreCase);
-
-        //Special case for partial divide expression/page wait ambiguity like "langen:voicedelay 1240/"
-        //TODO: decide if this is a bug or not
-        Regex DividePageWaitAmbiguityRegex = RegexFromStart(@"/\s*(;.*)?$", RegexOptions.IgnoreCase);
-
-        //Jumpf target ~ regex
-        Regex JumpfTarget = RegexFromStart(@"\s*~\s*$", RegexOptions.IgnoreCase);
-
-        //Ponscripter Formatting tag region
-        Regex ponscripterFormattingTagRegion = RegexFromStart(@"~[^~]*~", RegexOptions.IgnoreCase);
+    class Lexeme
+    {
+        public string text;
+        public LexemeType type;
 
 
-        List<Regex> operatorRegexList;
-
-        //TODO: support fchk command (`if fchk "file\path.bmp"`)
-        //NOTE: order here matters - must match from longest to shortest to prevent '=' matching '=='
-        string[] operatorList =
+        public Lexeme(LexemeType type, string text)
         {
-            @">=",
-            @"<=",
-            @"==",
-            @"!=",
-            @"<>",
-            @"&&",
-            @"\+",
-            @"-",
-            @"\*",
-            @"/",
-            @">",
-            @"<",
-            @"=",
-            //"\|\|", not sure if "\|\|" is supported
-        };
-
-        string line;
-        int pos;
-        SubroutineDatabase subroutineDatabase;
-
-        public CharReader(string line, SubroutineDatabase subroutineDatabase)
-        {
-            this.line = line;
-            this.subroutineDatabase = subroutineDatabase;
-            this.operatorRegexList = operatorList.Select(op => RegexFromStart(op, RegexOptions.IgnoreCase)).ToList();
-
-            Console.WriteLine($"Full Line [{line}]");
+            this.text = text;
+            this.type = type;
         }
 
-        public List<Lexeme> ParseSection(bool sectionAllowsText)
+        public override string ToString()
         {
-            List<Lexeme> retLexemes = new List<Lexeme>();
-            while(true)
-            {
-                SkipWhiteSpace();
-
-                if (!HasNext())
-                {
-                    break;
-                }
-
-                char next = Peek();
-
-                if (next == ';')
-                {
-                    retLexemes.Add(PopComment());
-                }
-                else if (next == ':')
-                {
-                    //colons are kind of not used
-                    retLexemes.Add(PopSymbol());
-                }
-                else if (next == '*')
-                {
-                    //always expect a label name after each *
-                    retLexemes.Add(PopSymbol());
-                    retLexemes.Add(PopToken());
-                }
-                else if(PopRegex(JumpfTarget, out Lexeme jumpfTargetLexeme))
-                {
-                    retLexemes.Add(jumpfTargetLexeme);
-                }
-                else if(PopRegex(ponscripterFormattingTagRegion, out Lexeme formattingTagRegion))
-                {
-                    retLexemes.Add(formattingTagRegion);
-                }
-                else if (charIsWord(next))
-                {
-                    //throw new NotImplementedException();
-                    retLexemes.AddRange(ParseWord());
-                }
-                else if (sectionAllowsText && (next == '^' || next == '!' || next > 255))
-                {
-                    retLexemes.Add(PopDialogue());
-                }
-                else if(sectionAllowsText && (next == '`'))
-                {
-                    //For '`': Pretend single-byte text mode is just normal text mode for now...
-                    retLexemes.Add(PopDialogue());
-                }
-                else if(sectionAllowsText && (next == '#'))
-                {
-                    //For '#': If you encounter a color tag at top level, most likely it's for colored text.
-                    retLexemes.Add(PopHexColor());
-                }
-                else if(sectionAllowsText && next == '$')
-                {
-                    //This is actually when a string is printed like: 
-                    //mov $Free1,"Chasan、Arel、Phorlakh、そしてTaliahad。"
-                    //langjp: dwave_jp 0, mar_1e562_1:$Free1@
-                    retLexemes.Add(PopStringVariable());
-                }
-                //else if(sectionAllowsText && next == '%')
-                //{
-                    //This is actually when a number is printed like: 
-                    //mov $Free1,"Chasan、Arel、Phorlakh、そしてTaliahad。"
-                    //langjp: dwave_jp 0, mar_1e562_1:$Free1@
-                    //retLexemes.Add(PopStringLiteral());
-                //}
-                else if (sectionAllowsText && (next == '@' || next == '\\' || next == '/'))
-                {
-                    retLexemes.Add(PopSymbol());
-                }
-                else if (sectionAllowsText && (next == '\''))
-                {
-                    PrintLexingWarning($"WARNING: Text-mode possibly entered unintentionally from character '{next}' (ascii: {(int) next})!");
-                    retLexemes.Add(PopDialogue());
-                }
-                else if(next <= 8)
-                {
-                    PrintLexingWarning($"WARNING: Got control character '{next}' (ascii: {(int)next}), which will be ignored!");
-                    retLexemes.Add(PopSymbol());
-                }
-                else
-                {
-                    //error
-                    ThrowLexingException("Unexpected character at top level");
-                }
-            }
-
-            return retLexemes;
-        }
-
-        public List<Lexeme> ParseWord()
-        {
-            //parse the function or keyword name
-            Lexeme functionNameLexeme = PopToken();
-            string fn = functionNameLexeme.text;
-            List<Lexeme> lexemes = new List<Lexeme> { functionNameLexeme };
-            Console.WriteLine($"Function name {fn}");
-
-            //check for keywords
-            if(fn == "if" || fn == "notif")
-            {
-                lexemes.AddRange(ParseIfCondition());
-            }
-            else if(fn == "for")
-            {
-                lexemes.AddRange(ParseForBody());
-            }
-            else
-            {
-                lexemes.AddRange(ParseFunctionArguments(fn));
-            }
-
-            return lexemes;
-        }
-
-        public List<Lexeme> ParseIfCondition()
-        {
-            Console.WriteLine("Parsing 'if' condition");
-            return PopExpression();
-        }
-
-        public List<Lexeme> ParseForBody()
-        {
-            Lexeme matchNumericValue()
-            {
-                SkipWhiteSpace();
-                if (Peek() == '%')
-                {
-                    return PopNumericVariable();
-                }
-                else if(charIsWord(Peek()))
-                {
-                    //most likely a numalias
-                    return PopToken();
-                }
-                else
-                {
-                    return PopNumericLiteral();
-                }
-            }
-
-            List<Lexeme> lexemes = new List<Lexeme>();
-
-            //numeric variable to be assigned to
-            lexemes.Add(PopNumericVariable());
-
-            //literal equals sign (in this case, it means assignment)
-            lexemes.Add(PopRegexOrError(ForEqualsRegex, "Missing '=' in for loop"));
-
-            //numeric literal or variable
-            matchNumericValue();
-
-            //literal 'to'
-            lexemes.Add(PopRegexOrError(ForToRegex, "Missing 'to' in for loop"));
-
-            //numeric literal or variable
-            matchNumericValue();
-
-            if (HasNext() && Peek() == 's')
-            {
-                //literal 'step'
-                lexemes.Add(PopRegexOrError(ForStepRegex, "Missing 'to' in for loop"));
-
-                //numeric literal or variable
-                matchNumericValue();
-            }
-
-            return lexemes;
-        }
-
-        public List<Lexeme> ParseFunctionArguments(string functionName)
-        {
-            List<Lexeme> lexemes = new List<Lexeme>();
-
-            SkipWhiteSpace();
-
-            //If have reached the end of line/nothing left to parse, just return no arguments
-            if (!HasNext())
-            {
-                return lexemes;
-            }
-
-            //If there is a comma after the function name, just ignore it
-            if(Peek() == ',')
-            {
-                //Keep the comma for now.
-                lexemes.Add(PopSymbol());
-                SkipWhiteSpace();
-            }
-
-
-            //try to determine how many arguments there are
-            if (subroutineDatabase.TryGetValue(functionName, out SubroutineInformation subroutineInformation))
-            {
-                Console.WriteLine($"Parsing function {functionName} which has {subroutineInformation.hasArguments} arguments");
-                if (subroutineInformation.hasArguments)
-                {
-                    //parse the first argument if it has more than one argument
-                    //TODO: should proabably group tokens here rather than doing later? not sure....
-                    List<Lexeme> firstArg = PopExpression();
-                    lexemes.AddRange(firstArg);
-                    //Console.WriteLine($"First argument {firstArg}");
-
-                    SkipWhiteSpace();
-                    while (HasNext())
-                    {
-                        //Just assume there is one argument after each comma 
-                        //(the engine will actually accept spaces instead of commas)
-                        char nextChar = Peek();
-                        if (nextChar != ',')
-                        {
-                            break;
-                        }
-                        Lexeme symbol = PopSymbol();
-                        lexemes.Add(symbol);
-                        //Console.WriteLine($"Symbol: {symbol}");
-
-                        //Add the expected expression after each comma
-                        List<Lexeme> expression = PopExpression();
-                        lexemes.AddRange(expression);
-                        //Console.WriteLine($"Symbol: {expression}");
-                        SkipWhiteSpace();
-                    }
-                }
-            }
-            else
-            {
-                ThrowLexingException($"Unknown num args for function '{functionName}'");
-            }
-
-            return lexemes;
-        }
-
-        private List<Lexeme> PopExpression()
-        {
-            //TODO: assume an expression is just a token until proper expression handling added
-            //return new List<Lexeme> { PopToken() }; 
-            List<Lexeme> lexemes = new List<Lexeme> { PopExpressionData() };
-
-            // Pop subsequent operator expression sequences (no support parenthesis '(' or ')' yet)
-            while(true)
-            {
-                //Due to ambiguity with the pagewait operator ('/') and the divide operator ('/'),
-                //Assume that the expression has ended if all that is left on the line is a '/'
-                if(DividePageWaitAmbiguityRegex.IsMatch(this.line, this.pos))
-                {
-                    break;
-                }
-
-                if(TryPopExpressionOperator(out Lexeme lexeme))
-                {
-                    lexemes.Add(lexeme);
-                }
-                else
-                {
-                    break;
-                }
-
-                lexemes.Add(PrintTee("Popped Expression Data", PopExpressionData()));
-            }
-
-            return lexemes;
-        }
-
-
-        private bool TryPopExpressionOperator(out Lexeme expressionOperator)
-        {
-            SkipWhiteSpace();
-
-            foreach(Regex r in this.operatorRegexList)
-            {
-                if (PopRegex(r, out Lexeme lexeme))
-                {
-                    expressionOperator = lexeme;
-                    Console.WriteLine($"Popped Expression Operator {lexeme}");
-                    return true;
-                }
-            }
-
-            expressionOperator = null;
-            return false;
-        }
-
-        // Pop the operand part of an expression like variables, string literals, array literals, labels etc.
-
-        //TODO: need to support expression datas like: mov $?r[kin][0],"bmp\r_click\cha_btn\non"
-        //possibly any combination of $?, $%tmp, if %%Free1 = 0 jumpf etc.
-        //Maybe just allow lexing anything which looks reasonable, and validate it at a later stage
-        //Also need to update if/for statements to allow the use of these types of expression data
-        private Lexeme PopExpressionData()
-        {
-            SkipWhiteSpace();
-            char next = Peek();
-
-            if (next == '"' || next == '^')
-            {
-                return PopStringLiteral();
-            }
-            else if (next == '%')
-            {
-                return PopNumericVariable();
-            }
-            else if (next == '$')
-            {
-                return PopStringVariable();
-            }
-            else if (next == '#')
-            {
-                return PopHexColor();
-            }
-            else if (next == '?')
-            {
-                return  PopRegexOrError(arrayRegex, "Failed to match array regex");
-            }
-            else if (next == '*')
-            {
-                //always expect a label name after each *
-                return PopRegexOrError(labelRegex, "Failed to match array regex");
-            }
-            else if (next == '-' || char.IsDigit(next))
-            {
-                return PopNumericLiteral();
-            }
-
-            //this is probably a numalias or special word (like movie option "nosound")
-            return PopToken();
-
-            //throw GetLexingException("Failed to pop expression data");
-        }
-
-        private Lexeme PopNumericVariable()
-        {
-            return PopRegexOrError(numericVariableRegex, "Failed to match (%) Numeric Variable");
-        }
-
-        private Lexeme PopStringVariable()
-        {
-            return PopRegexOrError(stringVariableRegex, "Failed to match ($) String Variable");
-        }
-
-        private Lexeme PopNumericLiteral()
-        {
-            return PopRegexOrError(numericLiteralRegex, "Failed to match numeric literal");
-        }
-
-        private Lexeme PopHexColor()
-        {
-            return PopRegexOrError(hexColorRegex, "Failed to match hex color");
-        }
-
-
-        private bool HasNext()
-        {
-            return this.pos < this.line.Length;
-        }
-
-        private char Peek()
-        {
-            if (this.pos >= this.line.Length)
-            {
-                throw new Exception("CharReader ran out of characters - missing EOL check?");
-            }
-
-            return line[this.pos];
-        }
-
-        private char Pop()
-        {
-            char retval = Peek();
-            this.pos++;
-            return retval;
-        }
-
-
-        private Lexeme PopSymbol()
-        {
-            SkipWhiteSpace();
-            return new Lexeme(Pop().ToString());
-        }
-
-        private Lexeme PopComment()
-        {
-            SkipWhiteSpace();
-            Lexeme retval = new Lexeme(this.line.Substring(this.pos));
-            this.pos = this.line.Length;
-            return retval;
-        }
-
-        private Lexeme PopToken()
-        {
-            SkipWhiteSpace();
-            int start = this.pos;
-            int length = 0;
-            while(HasNext() && charIsWord(Peek()))
-            {
-                Pop();
-                length++;
-            }
-
-            if(length == 0)
-            {
-                ThrowLexingException($"PopToken() Failed");
-            }
-
-            return new Lexeme(this.line.Substring(start, length));
-        }
-
-        private Lexeme PopStringLiteral()
-        {
-            SkipWhiteSpace();
-            int start = this.pos;
-
-            //Take the first delimiter off
-            char delimiter = Pop();
-            int length = 1;
-
-            while (HasNext())
-            {
-                char string_literal_or_delimiter = Pop();
-                length++;
-
-                if (string_literal_or_delimiter == delimiter)
-                {
-                    return new Lexeme(this.line.Substring(start, length));
-                }
-            }
-
-            throw new Exception("Missing string delimiter");
-        }
-
-        private Lexeme PopRegexOrError(Regex r, string errormsg)
-        {
-            if (PopRegex(r, out Lexeme lexeme))
-            {
-                return lexeme;
-            }
-            else
-            {
-                throw new Exception(errormsg);
-            }
-        }
-
-        private bool PopRegex(Regex r, out Lexeme lexeme)
-        {
-            SkipWhiteSpace();
-            int start = this.pos;
-
-            Match match = r.Match(this.line, start);
-            if (match.Success)
-            {
-                this.pos += match.Length;
-                lexeme = new Lexeme(match.Value);
-                return true;
-            }
-            else
-            {
-                lexeme = null;
-                return false;
-            }
-        }
-
-        private Lexeme PopDialogue()
-        {
-            int start = this.pos;
-            int length = 0;
-
-            while (HasNext())
-            {
-                char next = Peek();
-
-                if(next == '@' || TextLineEndRegex.IsMatch(this.line, start))
-                {
-                    break;
-                }
-                else
-                {
-                    Pop();
-                    length++;
-                }
-            }
-
-            return new Lexeme(this.line.Substring(start, length));
-        }
-
-        private void SkipWhiteSpace()
-        {
-            while (HasNext() && char.IsWhiteSpace(Peek()))
-            {
-                Pop();
-            }
-        }
-
-        private bool charIsWord(char c)
-        {
-            return c <= 255 && (char.IsLetterOrDigit(c) || c == '_');
-        }
-
-        private void ThrowLexingException(string message)
-        {
-            throw GetLexingException(message);
-        }
-
-        private Exception GetLexingException(string message)
-        {
-            throw new Exception(PrintLexingWarning(message));
-        }
-        private string PrintLexingWarning(string message)
-        {
-            string fullMessage = $"{message} From:{this.line.Substring(this.pos)}";
-            Console.WriteLine(fullMessage);
-            return fullMessage;
-        }
-
-        private static Regex RegexFromStart(string s, RegexOptions options)
-        {
-            return new Regex(@"\G" + s, options);
-        }
-
-        private static Lexeme PrintTee(string message, Lexeme l)
-        {
-            Console.WriteLine($"{message} '{l}'");
-            return l;
+            return this.text;
         }
     }
 
@@ -634,7 +86,7 @@ namespace PonscripterParser
         static void ParseLine(string line, SubroutineDatabase subroutineDatabase, bool isProgramBlock)
         {
             CharReader cr = new CharReader(line, subroutineDatabase);
-            List<Lexeme> l = cr.ParseSection(isProgramBlock);
+            List<LexemeOld> l = cr.ParseSection(isProgramBlock);
             /*foreach(Lexeme s in l)
             {
                 Console.WriteLine(s.text);
