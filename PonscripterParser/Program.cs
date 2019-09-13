@@ -49,19 +49,21 @@ namespace PonscripterParser
 
         public override string ToString()
         {
-            return this.text;
+            return $"{type}: \"{text}\"";
         }
     }
 
     class Program
     {
-        static void ParseLine(string line, SubroutineDatabase subroutineDatabase, bool isProgramBlock)
+        static void ProcessLine(string line, SubroutineDatabase subroutineDatabase, bool isProgramBlock)
         {
             //CharReader cr = new CharReader(line, subroutineDatabase);
             //List<LexemeOld> l = cr.ParseSection(isProgramBlock);
 
             LexerTest test = new LexerTest(line, subroutineDatabase);
             test.LexSection(isProgramBlock);
+
+            Parser.Parse(test.lexemes);
 
             /*foreach(Lexeme s in l)
             {
@@ -150,13 +152,13 @@ namespace PonscripterParser
             return new CodeBlocks(header, definition, program);
         }
 
-        static void RunParser(string[] lines, SubroutineDatabase subroutineDatabase)
+        static void CompileScript(string[] lines, SubroutineDatabase subroutineDatabase)
         {
             CodeBlocks cbs = ReadSegments(lines);
 
             foreach (string line in cbs.program)
             {
-                ParseLine(line, subroutineDatabase, isProgramBlock: true);
+                ProcessLine(line, subroutineDatabase, isProgramBlock: true);
             }
         }
 
@@ -192,7 +194,7 @@ namespace PonscripterParser
                 Console.WriteLine($"{kvp.Key}: {kvp.Value.hasArguments}");
             }
 
-            RunParser(lines, database);
+            CompileScript(lines, database);
 
             Console.WriteLine("----------------\nProgram Finished");
             Console.ReadKey();

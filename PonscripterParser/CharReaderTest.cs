@@ -21,7 +21,7 @@ namespace PonscripterParser
 
     class LexerTest
     {
-        List<Lexeme> lexemes;
+        public List<Lexeme> lexemes;
         string line;
         int pos;
         SubroutineDatabase subroutineDatabase;
@@ -286,7 +286,7 @@ namespace PonscripterParser
             Console.WriteLine("Lexemes lexed so far:");
             foreach(Lexeme lexeme in this.lexemes)
             {
-                Console.WriteLine($"{lexeme.type}: {lexeme.text}");
+                Console.WriteLine(lexeme);
             }
 
             return fullMessage;
