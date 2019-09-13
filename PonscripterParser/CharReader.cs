@@ -30,7 +30,7 @@ namespace PonscripterParser
         //Ponscripter Formatting tag region
         public static Regex ponscripterFormattingTagRegion = RegexFromStart(@"~[^~]*~", RegexOptions.IgnoreCase);
 
-        public static Regex whitespace = RegexFromStart(@"\s*", RegexOptions.IgnoreCase);
+        public static Regex whitespace = RegexFromStart(@"\s+", RegexOptions.IgnoreCase);
 
         public static Regex comment = RegexFromStart(@";.*", RegexOptions.IgnoreCase);
 
