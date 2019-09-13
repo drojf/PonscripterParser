@@ -42,7 +42,10 @@
     <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="CharReader.cs" />
+    <Compile Include="CharReaderTest.cs" />
     <Compile Include="CustomExceptions.cs" />
+    <Compile Include="LexemeType.cs" />
     <Compile Include="LexingMode.cs" />
     <Compile Include="NamedRegex.cs" />
     <Compile Include="OldParser.cs" />

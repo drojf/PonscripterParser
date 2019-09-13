@@ -35,34 +35,6 @@ namespace PonscripterParser
         }
     }
 
-    enum LexemeType
-    {
-        WHITESPACE,
-        COMMA,
-        COMMENT,
-        COLON,
-        LABEL,
-        JUMPF_TARGET,
-        FORMATTING_TAG,
-        HEX_COLOR,
-        UNHANDLED_CONTROL_CHAR,
-        IF,
-        NOT_IF,
-        FOR,
-        FUNCTION,
-        NUMERIC_LITERAL,
-        STRING_LITERAL,
-        HAT_STRING_LITERAL,
-        NUM_ALIAS,
-        ALIAS,
-        NUMERIC_REFERENCE,
-        STRING_REFERENCE,
-        ARRAY_REFERENCE,
-        LBRACKET,
-        RBRACKET,
-        OPERATOR,//should do this properly later
-    }
-
     class Lexeme
     {
         public string text;
@@ -85,8 +57,12 @@ namespace PonscripterParser
     {
         static void ParseLine(string line, SubroutineDatabase subroutineDatabase, bool isProgramBlock)
         {
-            CharReader cr = new CharReader(line, subroutineDatabase);
-            List<LexemeOld> l = cr.ParseSection(isProgramBlock);
+            //CharReader cr = new CharReader(line, subroutineDatabase);
+            //List<LexemeOld> l = cr.ParseSection(isProgramBlock);
+
+            LexerTest test = new LexerTest(line, subroutineDatabase);
+            test.LexSection(isProgramBlock);
+
             /*foreach(Lexeme s in l)
             {
                 Console.WriteLine(s.text);
@@ -200,9 +176,15 @@ namespace PonscripterParser
             // Add some extra pre-defined functions
             database["langen"] = new SubroutineInformation(false);
             database["langjp"] = new SubroutineInformation(false);
+            database["showlangen"] = new SubroutineInformation(false);
+            database["showlangjp"] = new SubroutineInformation(false);
+            database["langall"] = new SubroutineInformation(false); //TODO: not sure if this is a real function or a typo. Only occurs once in umineko question script.
 
             database["endroll"] = new SubroutineInformation(true);
             database["steamsetachieve"] = new SubroutineInformation(true);
+            database["getreadlang"] = new SubroutineInformation(true);
+            database["say"] = new SubroutineInformation(true);
+            database["tachistate"] = new SubroutineInformation(true);
 
 
             foreach (KeyValuePair<string, SubroutineInformation> kvp in database.GetRawDict())

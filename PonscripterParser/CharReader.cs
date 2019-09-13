@@ -9,7 +9,7 @@ namespace PonscripterParser
 {
     class Regexes {
         public static Regex hexColor = RegexFromStart(@"#[0-9abcdef]{6}", RegexOptions.IgnoreCase);
-        public static Regex word = RegexFromStart(@"\*\w+", RegexOptions.IgnoreCase);
+        public static Regex word = RegexFromStart(@"[a-zA-Z_][a-zA-Z0-9_]*", RegexOptions.IgnoreCase);
         public static Regex numericLiteral = RegexFromStart(@"-?\d+", RegexOptions.IgnoreCase);
 
         //For loop regexes
@@ -34,7 +34,14 @@ namespace PonscripterParser
 
         public static Regex comment = RegexFromStart(@";.*", RegexOptions.IgnoreCase);
 
-        public static Regex colon = RegexFromStart(@";.*", RegexOptions.IgnoreCase);
+        public static Regex colon = RegexFromStart(@":", RegexOptions.IgnoreCase);
+        public static Regex lSquareBracket = RegexFromStart(@"\[", RegexOptions.IgnoreCase);
+        public static Regex rSquareBracket = RegexFromStart(@"\]", RegexOptions.IgnoreCase);
+        public static Regex lRoundBracket = RegexFromStart(@"\(", RegexOptions.IgnoreCase);
+        public static Regex rRoundBracket = RegexFromStart(@"\)", RegexOptions.IgnoreCase);
+        public static Regex backSlash = RegexFromStart(@"\\", RegexOptions.IgnoreCase);
+        public static Regex forwardSlash = RegexFromStart(@"/", RegexOptions.IgnoreCase);
+        public static Regex atSymbol = RegexFromStart(@"@", RegexOptions.IgnoreCase);
 
         public static Regex label = RegexFromStart(@"\*\w+", RegexOptions.IgnoreCase);
 
@@ -44,8 +51,11 @@ namespace PonscripterParser
         public static Regex stringReferencePrefix = RegexFromStart(@"\$", RegexOptions.IgnoreCase);
         public static Regex arrayReferencePrefix = RegexFromStart(@"\?", RegexOptions.IgnoreCase);
 
-        public static Regex normalStringLiteral = RegexFromStart("\"[^\"]\"", RegexOptions.IgnoreCase);
+        public static Regex normalStringLiteral = RegexFromStart("\"[^\"]*\"", RegexOptions.IgnoreCase);
         public static Regex hatStringLiteral = RegexFromStart(@"\^[^\^]\^", RegexOptions.IgnoreCase);
+
+        public static Regex comma = RegexFromStart(@",", RegexOptions.IgnoreCase);
+
 
         //TODO: support fchk command (`if fchk "file\path.bmp"`)
         //NOTE: order here matters - must match from longest to shortest to prevent '=' matching '=='
@@ -66,7 +76,7 @@ namespace PonscripterParser
                 //"\|\|", not sure if "\|\|" is supported
         }.Select(op => RegexFromStart(op, RegexOptions.IgnoreCase)).ToList();
 
-        private static Regex RegexFromStart(string s, RegexOptions options)
+        public static Regex RegexFromStart(string s, RegexOptions options)
         {
             return new Regex(@"\G" + s, options);
         }
@@ -89,7 +99,7 @@ namespace PonscripterParser
     }
 
 
-    class CharReader2
+    /*class CharReader2
     {
         List<Lexeme> lexemes;
         string line;
@@ -157,13 +167,13 @@ namespace PonscripterParser
                     //Should this enter text mode?
                     break;
                 }
-                /*else if (sectionAllowsText && next == '$')
-                {
-                    //This is actually when a string is printed like: 
-                    //mov $Free1,"Chasan、Arel、Phorlakh、そしてTaliahad。"
-                    //langjp: dwave_jp 0, mar_1e562_1:$Free1@
-                    retLexemes.Add(PopStringVariable());
-                }*/
+                //else if (sectionAllowsText && next == '$')
+                //{
+                //    //This is actually when a string is printed like: 
+                //    //mov $Free1,"Chasan、Arel、Phorlakh、そしてTaliahad。"
+                //    //langjp: dwave_jp 0, mar_1e562_1:$Free1@
+                //    retLexemes.Add(PopStringVariable());
+                //}
                 //else if(sectionAllowsText && next == '%')
                 //{
                 //This is actually when a number is printed like: 
@@ -234,6 +244,54 @@ namespace PonscripterParser
             }
 
             throw GetLexingException("Failed to parse word");
+        }
+
+        public List<LexemeOld> ParseForBody()
+        {
+            LexemeOld matchNumericValue()
+            {
+                if (Peek() == '%')
+                {
+                    return PopNumericVariable();
+                }
+                else if (charIsWord(Peek()))
+                {
+                    //most likely a numalias
+                    return PopToken();
+                }
+                else
+                {
+                    return PopNumericLiteral();
+                }
+            }
+
+            List<LexemeOld> lexemes = new List<LexemeOld>();
+            
+            //numeric variable to be assigned to
+            lexemes.Add(PopNumericVariable());
+
+            //literal equals sign (in this case, it means assignment)
+            lexemes.Add(PopRegexOrError(ForEqualsRegex, "Missing '=' in for loop"));
+
+            //numeric literal or variable
+            matchNumericValue();
+
+            //literal 'to'
+            lexemes.Add(PopRegexOrError(ForToRegex, "Missing 'to' in for loop"));
+
+            //numeric literal or variable
+            matchNumericValue();
+
+            if (HasNext() && Peek() == 's')
+            {
+                //literal 'step'
+                lexemes.Add(PopRegexOrError(ForStepRegex, "Missing 'to' in for loop"));
+
+                //numeric literal or variable
+                matchNumericValue();
+            }
+
+            return lexemes;
         }
 
         private void ParseIfCondition()
@@ -402,21 +460,21 @@ namespace PonscripterParser
         }
 
         // Some lexeme which directly can be interpreted as a number, with no dereferencing
-        /*private void ParseNumericValue()
-        {
-            if(TryPopRegex(Regexes.numericLiteral, LexemeType.NUMERIC_LITERAL))
-            {
-                //Numeric Literal (-123124)
-                return;
-            }
-            else if(TryPopRegex(Regexes.word, LexemeType.NUM_ALIAS))
-            {
-                //numalias (asdf)
-                return;
-            }
+        //private void ParseNumericValue()
+        //{
+        //    if(TryPopRegex(Regexes.numericLiteral, LexemeType.NUMERIC_LITERAL))
+        //    {
+        //        //Numeric Literal (-123124)
+        //        return;
+        //    }
+        //    else if(TryPopRegex(Regexes.word, LexemeType.NUM_ALIAS))
+        //    {
+        //        //numalias (asdf)
+        //        return;
+        //    }
 
-            throw GetLexingException("Failed to parse numeric value");
-        }*/
+        //    throw GetLexingException("Failed to parse numeric value");
+        //}
 
         private void PopRegexOrError(Regex r, LexemeType lexemeType, string errormsg)
         {
@@ -484,7 +542,7 @@ namespace PonscripterParser
             Console.WriteLine(fullMessage);
             return fullMessage;
         }
-    }
+    }*/
 
     class CharReader
     {   //is \G required at start of regexes?
