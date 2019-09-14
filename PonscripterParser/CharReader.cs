@@ -10,7 +10,7 @@ namespace PonscripterParser
     class Regexes {
         public static Regex hexColor = RegexFromStart(@"#[0-9abcdef]{6}", RegexOptions.IgnoreCase);
         public static Regex word = RegexFromStart(@"[a-zA-Z_][a-zA-Z0-9_]*", RegexOptions.IgnoreCase);
-        public static Regex numericLiteral = RegexFromStart(@"-?\d+", RegexOptions.IgnoreCase);
+        public static Regex numericLiteral = RegexFromStart(@"\d+", RegexOptions.IgnoreCase);
 
         //For loop regexes
         public static Regex ForTo = RegexFromStart(@"to", RegexOptions.IgnoreCase);
