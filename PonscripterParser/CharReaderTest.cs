@@ -176,14 +176,6 @@ namespace PonscripterParser
                                 nextMustBeExpression = true;
                             }
                         }
-                        else if(word.StartsWith("_") && subroutineDatabase.TryGetValue(word.Substring(1), out SubroutineInformation underscoreSubroutineInformation))
-                        {
-                            Console.WriteLine($"WARNING: it appears the function {word} is called with an underscore, even though it is not overriden");
-                            if (underscoreSubroutineInformation.hasArguments)
-                            {
-                                nextMustBeExpression = true;
-                            }
-                        }
                         else
                         {
                             throw GetLexingException($"Unrecognized keyword or function \"{word}\"");

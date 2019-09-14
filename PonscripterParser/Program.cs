@@ -63,7 +63,9 @@ namespace PonscripterParser
             LexerTest test = new LexerTest(line, subroutineDatabase);
             test.LexSection(isProgramBlock);
 
-            Parser.Parse(test.lexemes);
+            Parser p = new Parser(test.lexemes, subroutineDatabase);
+
+            p.Parse();
 
             /*foreach(Lexeme s in l)
             {

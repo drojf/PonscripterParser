@@ -98,10 +98,30 @@ namespace PonscripterParser
             }
         }
 
-        public bool TryGetValue(string sAnyCase, out SubroutineInformation output)
+        //TODO: tidy this up later...
+        public bool InnerTryGetValue(string sAnyCase, out SubroutineInformation output)
         {
             return subroutineInfoDict.TryGetValue(NormalizeKey(sAnyCase), out output);
         }
+
+        public bool TryGetValue(string sAnyCase, out SubroutineInformation output)
+        {
+            if (InnerTryGetValue(sAnyCase, out SubroutineInformation subroutineInformation))
+            {
+                output = subroutineInformation;
+                return true;
+            }
+            else if (sAnyCase.StartsWith("_") && InnerTryGetValue(sAnyCase.Substring(1), out SubroutineInformation underscoreSubroutineInformation))
+            {
+                output = underscoreSubroutineInformation;
+                Console.WriteLine($"WARNING: it appears the function {sAnyCase} is called with an underscore, even though it is not overriden");
+                return true;
+            }
+
+            output = null;
+            return false;
+        }
+
 
         public SubroutineInformation this[string key]
         {
@@ -124,6 +144,7 @@ namespace PonscripterParser
         {
             return preserveCase ? sAnyCase : sAnyCase.ToLower();
         }
+
     }
 
 
@@ -220,7 +241,7 @@ namespace PonscripterParser
             foreach (LabelInfo label in labels)
             {
                 //Only process subroutine definitions, not ordinary labels
-                if(!database.TryGetValue(label.labelName, out _))
+                if(!database.InnerTryGetValue(label.labelName, out _))
                 {
                     continue;
                 }
