@@ -47,3 +47,15 @@ argument parsing can be postponed to a later pass.
 There are also vararg functions like `csel` which accept an unlimited number of arguments
 
 --------------
+
+
+-------
+//Based on Crafting interpreters/generic order of operations
+
+expression = logical
+logical = comparison (("&&" | "&") comparison)* //I dont know if there is a "||" operator in Ponscripter
+comparison = addition (("==" | "!=" | ">" | ">=" | "<" | "<=") addition)*
+addition = mult (( "+" | "-" ) mult)*
+mult = primary (( "*" | "/" ) primary)*
+primary = numeric/string reference/literal ("expression data") | "(" expression ")" 
+

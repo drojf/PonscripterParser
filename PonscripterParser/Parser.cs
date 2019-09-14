@@ -51,9 +51,11 @@ namespace PonscripterParser
     class ArrayReference : Node
     {
         List<Node> nodes;
-        public ArrayReference(Lexeme lexeme) : base(lexeme)
+        Lexeme arrayName;
+        public ArrayReference(Lexeme lexeme, Lexeme arrayName) : base(lexeme)
         {
             this.nodes = new List<Node>();
+            this.arrayName = arrayName;
         }
 
         public void AddBracketedExpression(Node node)
@@ -147,6 +149,51 @@ namespace PonscripterParser
         }
     }
 
+    class OperatorListNode : Node
+    {
+        List<Node> nodes;
+
+        public OperatorListNode() : base(null)
+        {
+            this.nodes = new List<Node>();
+        }
+
+        public void push(Node node)
+        {
+            this.nodes.Add(node);
+        }
+    }
+
+    class OperatorNode : Node
+    {
+        public OperatorNode(Lexeme lexeme) : base(lexeme)
+        {
+        }
+    }
+
+    class UnaryNode : Node
+    {
+        Node inner;
+        public UnaryNode(Lexeme lexeme, Node inner) : base(lexeme)
+        {
+            this.inner = inner;
+        }
+    }
+
+    class JumpfTarget : Node
+    {
+        public JumpfTarget(Lexeme lexeme) : base(lexeme)
+        {
+        }
+    }
+
+    class Colon : Node
+    {
+        public Colon(Lexeme lexeme) : base(lexeme)
+        {
+        }
+    }
+
     class Parser
     {
         Lexeme debug_lastViewedLexeme;
@@ -190,7 +237,7 @@ namespace PonscripterParser
                     return new LabelNode(Pop());
 
                 case LexemeType.WORD:
-                    return HandleFunction();
+                    return HandleWord();
 
                 //can't have an array reference/alias at top level I think. Must have a numeric reference.
                 case LexemeType.NUMERIC_REFERENCE:
@@ -200,6 +247,12 @@ namespace PonscripterParser
                 case LexemeType.STRING_REFERENCE:
                     //this should only happen if you're trying to print a string reference/value
                     return new StringReferenceNode(Pop(), HandleNumericValue());
+
+                case LexemeType.JUMPF_TARGET:
+                    return new JumpfTarget(Pop());
+
+                case LexemeType.COLON:
+                    return new Colon(Pop());
             }
 
             throw GetParsingException("Unexpected lexeme at top level");
@@ -311,6 +364,7 @@ namespace PonscripterParser
                     //Just assume there is one argument after each comma 
                     //If anything else is found besides a comma, assume function arguments have ended.
                     //TODO: (the engine will actually accept spaces instead of commas)
+                    //TODO: perhaps should use colon ':' to determine function end if more than one function after each other?
                     SkipWhiteSpace();
                     if (Peek().type != LexemeType.COMMA)
                     {
@@ -331,7 +385,116 @@ namespace PonscripterParser
 
         public Node HandleExpression()
         {
-            switch(Peek().type)
+            return HandleLogical();
+        }
+
+        public Node HandleLogical()
+        {
+            OperatorListNode list = new OperatorListNode();
+
+            list.push(HandleComparison());
+            SkipWhiteSpace();
+            while (HasNext() && IsOperatorOfValue("&&", "&"))
+            {
+                SkipWhiteSpace();
+                list.push(new OperatorNode(Pop()));
+                SkipWhiteSpace();
+                list.push(HandleComparison());
+            }
+
+            return list;
+        }
+
+        public Node HandleComparison()
+        {
+            OperatorListNode list = new OperatorListNode();
+
+            list.push(HandleAddition());
+            SkipWhiteSpace();
+            while (HasNext() && IsOperatorOfValue("==", "!=", ">=", "<=", ">", "<", "="))
+            {
+                SkipWhiteSpace();
+                list.push(new OperatorNode(Pop()));
+                SkipWhiteSpace();
+                list.push(HandleAddition());
+            }
+
+            return list;
+        }
+
+        public Node HandleAddition()
+        {
+            OperatorListNode list = new OperatorListNode();
+
+            list.push(HandleTimes());
+            SkipWhiteSpace();
+            while (HasNext() && IsOperatorOfValue("+", "-"))
+            {
+                SkipWhiteSpace();
+                list.push(new OperatorNode(Pop()));
+                SkipWhiteSpace();
+                list.push(HandleTimes());
+            }
+
+            return list;
+        }
+
+        public Node HandleTimes()
+        {
+            OperatorListNode list = new OperatorListNode();
+
+            list.push(HandleUnary());
+            SkipWhiteSpace();
+            while (HasNext() && IsOperatorOfValue("*", "/"))
+            {
+                SkipWhiteSpace();
+                list.push(new OperatorNode(Pop()));
+                SkipWhiteSpace();
+                list.push(HandleUnary());
+            }
+
+            return list;
+        }
+
+        public Node HandleUnary()
+        {
+            if(HasNext() && IsOperatorOfValue("-"))
+            {
+                //TODO: Not sure if repeated unaries are allowed like `-----5` - allow for now.
+                return new UnaryNode(Pop(), HandleUnary());
+            }
+            else
+            {
+                return HandleBrackets();
+            }
+        }
+
+        public Node HandleBrackets()
+        {
+            SkipWhiteSpace();
+            if (Peek().type == LexemeType.L_ROUND_BRACKET)
+            {
+                Pop();
+                Node temp = HandleExpression();
+                if(Peek().type == LexemeType.R_ROUND_BRACKET)
+                {
+                    Pop();
+                }
+                else
+                {
+                    throw GetParsingException("Missing closing bracket ')'");
+                }
+                return temp;
+            }
+            else
+            {
+                return HandleExpressionData();
+            }
+        }
+
+        public Node HandleExpressionData()
+        {
+            switch (Peek().type)
             {
                 case LexemeType.HEX_COLOR:
                     return new HexColor(Pop());
@@ -364,16 +527,19 @@ namespace PonscripterParser
 
         public Node HandleArray()
         {
-            //first lexeme must be a question mark
-            ArrayReference array = new ArrayReference(Pop(LexemeType.ARRAY_REFERENCE));
+            //First two lexemes must be question mark, then array name
+            ArrayReference array = new ArrayReference(
+                PopMessage(LexemeType.ARRAY_REFERENCE, "Missing Array ?"), 
+                PopMessage(LexemeType.WORD, "Missing Array Name")
+            );
 
             //Arrays must have at least 1 left bracket
-            if(Peek().type != LexemeType.L_SQUARE_BRACKET)
+            if (Peek().type != LexemeType.L_SQUARE_BRACKET)
             {
                 throw GetParsingException("Got Array reference without array brackets");
             }
 
-            while(Peek().type != LexemeType.L_SQUARE_BRACKET)
+            while(Peek().type == LexemeType.L_SQUARE_BRACKET)
             {
                 //Handle a  '[' EXPRESSION ']'
                 Pop(LexemeType.L_SQUARE_BRACKET);
@@ -455,7 +621,7 @@ namespace PonscripterParser
 
         private void SkipWhiteSpace()
         {
-            while (Peek().type == LexemeType.WHITESPACE)
+            while (HasNext() && Peek().type == LexemeType.WHITESPACE)
             {
                 Pop();
             }
@@ -465,6 +631,24 @@ namespace PonscripterParser
         {
             debug_lastViewedLexeme = this.lexemes[this.pos];
             return this.lexemes[this.pos];
+        }
+
+        private bool IsOperatorOfValue(params string[] allowedOperators)
+        {
+            if (Peek().type != LexemeType.OPERATOR)
+            {
+                return false;
+            }
+
+            foreach (string op in allowedOperators)
+            {
+                if(Peek().text == op)
+                {
+                    return true;
+                }
+            }
+
+            return false;
         }
 
         private Exception GetParsingException(string message)
