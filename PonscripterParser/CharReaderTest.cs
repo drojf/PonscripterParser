@@ -133,7 +133,7 @@ namespace PonscripterParser
 
                     PopDialogue();
                 }
-                else if((nextMustBeExpression || firstIteration) && TryPopRegex(Regexes.label, LexemeType.LABEL))
+                else if((mustBeExpression || firstIteration) && TryPopRegex(Regexes.label, LexemeType.LABEL))
                 {
                     //label must either be:
                     // - the first lexeme on the line, or 
