@@ -42,18 +42,15 @@
     <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
-    <Compile Include="CharReader.cs" />
+    <Compile Include="Regexes.cs" />
     <Compile Include="CharReaderTest.cs" />
     <Compile Include="CustomExceptions.cs" />
     <Compile Include="LexemeType.cs" />
-    <Compile Include="LexingMode.cs" />
     <Compile Include="NamedRegex.cs" />
-    <Compile Include="OldParser.cs" />
     <Compile Include="Parser.cs" />
     <Compile Include="PredefinedFunctionInfoLoader.cs" />
     <Compile Include="Program.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
-    <Compile Include="SemanticRegexes.cs" />
     <Compile Include="Token.cs" />
     <Compile Include="TokenType.cs" />
     <Compile Include="UserFunctionScanner.cs" />

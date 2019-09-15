@@ -20,21 +20,6 @@ namespace PonscripterParser
         }
     }
 
-    class LexemeOld
-    {
-        public string text;
-
-        public LexemeOld(string text)
-        {
-            this.text = text;
-        }
-
-        public override string ToString()
-        {
-            return this.text;
-        }
-    }
-
     class Lexeme
     {
         public string text;
@@ -57,9 +42,6 @@ namespace PonscripterParser
     {
         static void ProcessLine(string line, SubroutineDatabase subroutineDatabase, bool isProgramBlock)
         {
-            //CharReader cr = new CharReader(line, subroutineDatabase);
-            //List<LexemeOld> l = cr.ParseSection(isProgramBlock);
-
             Console.WriteLine(line);
 
             LexerTest test = new LexerTest(line, subroutineDatabase);
@@ -68,19 +50,6 @@ namespace PonscripterParser
             Parser p = new Parser(test.lexemes, subroutineDatabase);
 
             p.Parse();
-
-            /*foreach(Lexeme s in l)
-            {
-                Console.WriteLine(s.text);
-            }*/
-        }
-
-        static void PrintLines(string[] lines)
-        {
-            foreach (string line in lines)
-            {
-                Console.WriteLine(line);
-            }
         }
 
         static string[] LoadScript()
@@ -168,9 +137,6 @@ namespace PonscripterParser
 
         static void Main(string[] args)
         {
-
-
-
             string[] lines = LoadScript();
 
             SubroutineDatabase database = new SubroutineDatabase();
