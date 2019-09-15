@@ -250,11 +250,11 @@ namespace PonscripterParser
 
         public void Parse()
         {
-            PrintLexemes(this.lexemes);
+            //PrintLexemes(this.lexemes);
 
             while(HasNext())
             {
-                Console.WriteLine($"Processing {Peek()}");
+                //Console.WriteLine($"Processing {Peek()}");
 
                 SkipWhiteSpace();
                 if (!HasNext())
@@ -434,7 +434,7 @@ namespace PonscripterParser
             }
             SkipWhiteSpace();
 
-            Console.WriteLine($"Parsing function {functionName} which has {subroutineInformation.hasArguments} arguments");
+            //Console.WriteLine($"Parsing function {functionName} which has {subroutineInformation.hasArguments} arguments");
             if (subroutineInformation.hasArguments)
             {
                 //parse the first argument if it has more than one argument
@@ -774,6 +774,7 @@ namespace PonscripterParser
         private string PrintParsingWarning(string message)
         {
             Console.WriteLine($"-----------------------");
+            PrintLexemes(lexemes);
             Console.WriteLine($"Warning: {message} {debug_lastViewedLexeme}");
             Console.WriteLine("Unparsed Lexemes so far");
             PrintLexemes(lexemes, this.pos);

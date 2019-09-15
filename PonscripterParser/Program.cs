@@ -60,6 +60,8 @@ namespace PonscripterParser
             //CharReader cr = new CharReader(line, subroutineDatabase);
             //List<LexemeOld> l = cr.ParseSection(isProgramBlock);
 
+            Console.WriteLine(line);
+
             LexerTest test = new LexerTest(line, subroutineDatabase);
             test.LexSection(isProgramBlock);
 

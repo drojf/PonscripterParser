@@ -78,7 +78,7 @@ namespace PonscripterParser
             this.subroutineDatabase = subroutineDatabase;
             this.lexemes = new List<Lexeme>();
 
-            Console.WriteLine($"Full Line [{line}]");
+            //Console.WriteLine($"Full Line [{line}]");
         }
 
         static private RegexLexemeTypePair Pair(Regex regex, LexemeType type)
