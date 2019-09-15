@@ -52,7 +52,7 @@ namespace PonscripterParser
         public static Regex arrayReferencePrefix = RegexFromStart(@"\?", RegexOptions.IgnoreCase);
 
         public static Regex normalStringLiteral = RegexFromStart("\"[^\"]*\"", RegexOptions.IgnoreCase);
-        public static Regex hatStringLiteral = RegexFromStart(@"\^[^\^]\^", RegexOptions.IgnoreCase);
+        public static Regex hatStringLiteral = RegexFromStart(@"\^[^\^]*\^", RegexOptions.IgnoreCase);
 
         public static Regex comma = RegexFromStart(@",", RegexOptions.IgnoreCase);
 

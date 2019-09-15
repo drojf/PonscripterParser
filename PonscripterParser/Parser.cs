@@ -87,8 +87,10 @@ namespace PonscripterParser
 
     class StringLiteral : Node
     {
-        public StringLiteral(Lexeme lexeme) : base(lexeme)
+        bool hatStringLiteral;
+        public StringLiteral(Lexeme lexeme, bool hatStringLiteral) : base(lexeme)
         {
+            this.hatStringLiteral = hatStringLiteral;
         }
     }
 
@@ -608,7 +610,10 @@ namespace PonscripterParser
                     return new AliasNode(Pop());
 
                 case LexemeType.STRING_LITERAL:
-                    return new StringLiteral(Pop());
+                    return new StringLiteral(Pop(), hatStringLiteral: false);
+
+                case LexemeType.HAT_STRING_LITERAL:
+                    return new StringLiteral(Pop(), hatStringLiteral: true);
 
                 case LexemeType.NUMERIC_LITERAL:
                     return new NumericLiteral(Pop());
