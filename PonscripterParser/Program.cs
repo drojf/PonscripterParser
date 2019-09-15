@@ -48,8 +48,10 @@ namespace PonscripterParser
             test.LexSection(isProgramBlock);
 
             Parser p = new Parser(test.lexemes, subroutineDatabase);
+            List<Node> nodes = p.Parse();
 
-            p.Parse();
+            TreeWalker walker = new TreeWalker(nodes);
+            walker.Walk();
         }
 
         static string[] LoadScript()
@@ -129,10 +131,20 @@ namespace PonscripterParser
         {
             CodeBlocks cbs = ReadSegments(lines);
 
-            foreach (string line in cbs.program)
+            foreach (string line in cbs.header)
             {
                 ProcessLine(line, subroutineDatabase, isProgramBlock: true);
             }
+
+            foreach (string line in cbs.definition)
+            {
+                ProcessLine(line, subroutineDatabase, isProgramBlock: true);
+            }
+
+            /*foreach (string line in cbs.program)
+            {
+                ProcessLine(line, subroutineDatabase, isProgramBlock: true);
+            }*/
         }
 
         static void Main(string[] args)

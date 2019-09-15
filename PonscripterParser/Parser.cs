@@ -245,16 +245,16 @@ namespace PonscripterParser
         public Parser(List<Lexeme> lexemes, SubroutineDatabase subroutineDatabase)
         {
             this.lexemes = lexemes;
-            this.nodes = new List<Node>();
-            this.pos = 0;
             this.subroutineDatabase = subroutineDatabase;
         }
 
-        public void Parse()
+        public List<Node> Parse()
         {
+            this.nodes = new List<Node>();
+            this.pos = 0;
             //PrintLexemes(this.lexemes);
 
-            while(HasNext())
+            while (HasNext())
             {
                 //Console.WriteLine($"Processing {Peek()}");
 
@@ -266,6 +266,8 @@ namespace PonscripterParser
 
                 nodes.Add(HandleTopLevel());
             }
+
+            return this.nodes;
         }
 
         public Node HandleTopLevel()
