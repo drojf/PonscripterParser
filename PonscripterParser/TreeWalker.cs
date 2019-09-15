@@ -8,7 +8,7 @@ namespace PonscripterParser
     interface FunctionHandler
     {
         string FunctionName();
-        string HandleFunctionNode(TreeWalker walker, FunctionNode function);
+        void HandleFunctionNode(TreeWalker walker, FunctionNode function);
     }
 
     class IgnoreCaseDictionary<V>
@@ -100,15 +100,81 @@ namespace PonscripterParser
         }
     }
 
+
+    class NumAliasHandler : FunctionHandler
+    {
+        public string FunctionName() => "numalias";
+
+        public void HandleFunctionNode(TreeWalker walker, FunctionNode function)
+        {
+            //TODO: need to simplify parser tree format otherwise crashes here...
+            string aliasName = function.arguments[0].lexeme.text;
+            int aliasValue = int.Parse(function.arguments[1].lexeme.text);
+
+            Log.Information($"Received numalias {aliasName} = {aliasValue}");
+
+            walker.numAliasDictionary.Set(aliasName, aliasValue);
+        }
+    }
+
+    class StringAliasHandler : FunctionHandler
+    {
+        public string FunctionName() => "stralias";
+
+        public void HandleFunctionNode(TreeWalker walker, FunctionNode function)
+        {
+            string aliasName = function.arguments[0].lexeme.text;
+            string aliasValue = function.arguments[1].lexeme.text;
+
+            Log.Information($"Received numalias {aliasName} = {aliasValue}");
+
+            walker.stringAliasDictionary.Set(aliasName, aliasValue);
+        }
+    }
+
+
     class TreeWalker
     {
         List<Node> nodes;
         FunctionHandlerLookup functionLookup;
+        public IgnoreCaseDictionary<int> numAliasDictionary;
+        public IgnoreCaseDictionary<string> stringAliasDictionary;
 
         public TreeWalker(List<Node> nodes)
         {
             this.nodes = nodes;
+
             this.functionLookup = new FunctionHandlerLookup();
+            this.numAliasDictionary = new IgnoreCaseDictionary<int>();
+            this.stringAliasDictionary = new IgnoreCaseDictionary<string>();
+
+            //Register function handlers
+            this.functionLookup.RegisterSystemFunction(new NumAliasHandler());
+            this.functionLookup.RegisterSystemFunction(new StringAliasHandler());
+
+            //switch(function.lexeme.text)
+            //{
+            //    case "numalias":
+            //        break;
+
+            //    case "stralias":
+            //        break;
+
+            //    case "defsub":
+            //        break;
+
+            //    case "mov":
+            //        break;
+
+            //    case "gosub":
+            //        break;
+
+            //    case "goto":
+            //        break;
+
+            //    case "bg":
+            //        break;
+            //}
         }
 
         public void Walk()
@@ -148,29 +214,7 @@ namespace PonscripterParser
 
             return false;
 
-            //switch(function.lexeme.text)
-            //{
-            //    case "numalias":
-            //        break;
 
-            //    case "stralias":
-            //        break;
-
-            //    case "defsub":
-            //        break;
-
-            //    case "mov":
-            //        break;
-
-            //    case "gosub":
-            //        break;
-
-            //    case "goto":
-            //        break;
-
-            //    case "bg":
-            //        break;
-            //}
         }
     }
 }

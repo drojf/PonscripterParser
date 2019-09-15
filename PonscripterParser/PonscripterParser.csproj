@@ -50,6 +50,7 @@
     <Compile Include="PredefinedFunctionInfoLoader.cs" />
     <Compile Include="Program.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
+    <Compile Include="Log.cs" />
     <Compile Include="TreeWalker.cs" />
     <Compile Include="UserFunctionScanner.cs" />
   </ItemGroup>

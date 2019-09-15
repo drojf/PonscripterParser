@@ -66,15 +66,16 @@ namespace PonscripterParser
 
     class FunctionNode : Node
     {
-        List<Node> nodes;
+        public List<Node> arguments;
+
         public FunctionNode(Lexeme lexeme) : base(lexeme)
         {
-            nodes = new List<Node>();
+            arguments = new List<Node>();
         }
 
         public void AddArgument(Node node)
         {
-            nodes.Add(node);
+            arguments.Add(node);
         }
     }
 
