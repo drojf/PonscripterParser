@@ -59,7 +59,7 @@ namespace PonscripterParser
             Pair(@">=", LexemeType.OPERATOR),
             Pair(@"<=",LexemeType.OPERATOR),
             Pair(@"!=",LexemeType.OPERATOR),
-            Pair(@"<>",LexemeType.OPERATOR),
+            Pair(@"<>",LexemeType.OPERATOR), //equivalent to '!='
             Pair(@"==",LexemeType.OPERATOR), //equivalent to '='
             Pair(@"&&",LexemeType.OPERATOR), //equivalent to '&'
             Pair(@"\+",LexemeType.OPERATOR),

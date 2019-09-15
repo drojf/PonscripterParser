@@ -194,6 +194,44 @@ namespace PonscripterParser
         }
     }
 
+    class DialogueNode : Node
+    {
+        public DialogueNode(Lexeme lexeme) : base(lexeme)
+        {
+        }
+    }
+
+    class TextFormattingTagNode : Node
+    {
+        public TextFormattingTagNode(Lexeme lexeme) : base(lexeme)
+        {
+        }
+    }
+
+    class ClickWaitNode : Node
+    {
+        public ClickWaitNode(Lexeme lexeme) : base(lexeme)
+        {
+        }
+    }
+
+    class TextColorChangeNode : Node
+    {
+        public TextColorChangeNode(Lexeme lexeme) : base(lexeme)
+        {
+        }
+    }
+
+    class ReturnNode : Node
+    {
+        //this is never used/never happens in the umineko scripts
+        LabelNode returnDestination; //can be null if no return destination given.
+        public ReturnNode(Lexeme lexeme, LabelNode returnDestination) : base(lexeme)
+        {
+            this.returnDestination = returnDestination;
+        }
+    }
+
     class Parser
     {
         Lexeme debug_lastViewedLexeme;
@@ -218,15 +256,18 @@ namespace PonscripterParser
             {
                 Console.WriteLine($"Processing {Peek()}");
 
+                SkipWhiteSpace();
+                if (!HasNext())
+                {
+                    break;
+                }
+
                 nodes.Add(HandleTopLevel());
             }
         }
 
         public Node HandleTopLevel()
         {
-            //At top level, ignore any whitespace.
-            SkipWhiteSpace();
-
             switch (Peek().type)
             {
                 case LexemeType.COMMENT:
@@ -253,6 +294,26 @@ namespace PonscripterParser
 
                 case LexemeType.COLON:
                     return new Colon(Pop());
+
+                case LexemeType.DIALOGUE:
+                    return new DialogueNode(Pop());
+
+                case LexemeType.FORMATTING_TAG:
+                    return new TextFormattingTagNode(Pop());
+
+                case LexemeType.AT_SYMBOL:
+                case LexemeType.BACK_SLASH:
+                    return new ClickWaitNode(Pop());
+
+                case LexemeType.OPERATOR:
+                    if(Peek().text == "/")
+                    {
+                        return new ClickWaitNode(Pop());
+                    }
+                    break;
+
+                case LexemeType.HEX_COLOR:
+                    return new TextColorChangeNode(Pop());
             }
 
             throw GetParsingException("Unexpected lexeme at top level");
@@ -268,10 +329,28 @@ namespace PonscripterParser
             {
                 return HandleFor();
             }
+            else if (Peek().text == "return")
+            {
+                return HandleReturn();
+            }
             else
             {
                 return HandleFunction();
             }
+        }
+
+        //Return statements can take either no argument, or a label as argument (the return destination).
+        public Node HandleReturn()
+        {
+            Lexeme returnWord = Pop();
+            LabelNode returnDestination = null;
+
+            if(HasNext() && Peek().type == LexemeType.LABEL)
+            {
+                returnDestination = new LabelNode(Pop());
+            }
+
+            return new ReturnNode(returnWord, returnDestination);
         }
 
         public Node HandleIfCondition()
@@ -284,7 +363,8 @@ namespace PonscripterParser
             ForStatementNode forStatement = new ForStatementNode(Pop(LexemeType.WORD));
 
             //numeric reference to be assigned to (I think only an 
-            switch(Peek().type)
+            SkipWhiteSpace();
+            switch (Peek().type)
             {
                 case LexemeType.NUMERIC_REFERENCE:
                     //TODO: should probably make a numeric referencec value specific fucntion
@@ -300,25 +380,28 @@ namespace PonscripterParser
             }
 
             //literal equals sign (in this case, it means assignment)
+            SkipWhiteSpace();
             PopMessage(LexemeType.OPERATOR, "=", "Missing '=' in for loop");
 
             //numeric literal or variable
-            forStatement.SetStartExpression(HandleNumericValue());
+            forStatement.SetStartExpression(HandleExpression());
 
             //literal 'to'
+            SkipWhiteSpace();
             PopMessage(LexemeType.WORD, "to", "Missing 'to' in for loop");
 
             //numeric literal or variable
-            forStatement.SetEndExpression(HandleNumericValue());
+            forStatement.SetEndExpression(HandleExpression());
 
             //optional 'step'
+            SkipWhiteSpace();
             if (HasNext() && Peek().type == LexemeType.WORD && Peek().text == "step")
             {
                 //literal 'step'
                 Pop();
 
                 //numeric literal or variable
-                forStatement.SetStep(HandleNumericValue());
+                forStatement.SetStep(HandleExpression());
             }
 
             return forStatement;
@@ -385,6 +468,7 @@ namespace PonscripterParser
 
         public Node HandleExpression()
         {
+            //TODO: use alternate method (binary try) for expressions to give cleaner tree
             return HandleLogical();
         }
 
@@ -411,7 +495,7 @@ namespace PonscripterParser
 
             list.push(HandleAddition());
             SkipWhiteSpace();
-            while (HasNext() && IsOperatorOfValue("==", "!=", ">=", "<=", ">", "<", "="))
+            while (HasNext() && IsOperatorOfValue("==", "!=", "<>", ">=", "<=", ">", "<", "="))
             {
                 SkipWhiteSpace();
                 list.push(new OperatorNode(Pop()));
@@ -448,6 +532,25 @@ namespace PonscripterParser
             while (HasNext() && IsOperatorOfValue("*", "/"))
             {
                 SkipWhiteSpace();
+
+                //handle ambiguity when there is a "/" at the end of a line like  `voicedleay 1300/`
+                // - Look ahead of the "/" symbol. 
+                // - If anything other than whitespace/comment is found, then assume it's an operator
+                // - If only whitespace/comment found and the end of lexemes is reached, assume it's a newline-ignore symbol
+                int offset = 1;
+                Lexeme futureLexeme;
+                do
+                {
+                    if (!TokenExistsAt(offset))
+                    {
+                        return list;
+                    }
+
+                    futureLexeme = Peek(offset);
+                    offset += 1;
+                } while (futureLexeme.type == LexemeType.COMMENT || futureLexeme.type == LexemeType.WHITESPACE);
+
+                SkipWhiteSpace();
                 list.push(new OperatorNode(Pop()));
                 SkipWhiteSpace();
                 list.push(HandleUnary());
@@ -458,7 +561,8 @@ namespace PonscripterParser
 
         public Node HandleUnary()
         {
-            if(HasNext() && IsOperatorOfValue("-"))
+            SkipWhiteSpace();
+            if (HasNext() && IsOperatorOfValue("-"))
             {
                 //TODO: Not sure if repeated unaries are allowed like `-----5` - allow for now.
                 return new UnaryNode(Pop(), HandleUnary());
@@ -539,7 +643,7 @@ namespace PonscripterParser
                 throw GetParsingException("Got Array reference without array brackets");
             }
 
-            while(Peek().type == LexemeType.L_SQUARE_BRACKET)
+            while(HasNext() && Peek().type == LexemeType.L_SQUARE_BRACKET)
             {
                 //Handle a  '[' EXPRESSION ']'
                 Pop(LexemeType.L_SQUARE_BRACKET);
@@ -553,7 +657,8 @@ namespace PonscripterParser
         // Handle a generic numeric value, which can come after a string or numeric reference, or inside an array `[]`
         public Node HandleNumericValue()
         {
-            switch(Peek().type)
+            SkipWhiteSpace();
+            switch (Peek().type)
             {
                 case LexemeType.NUMERIC_REFERENCE:
                     return new NumericReferenceNode(Pop(), HandleNumericValue());
@@ -616,7 +721,12 @@ namespace PonscripterParser
 
         private bool HasNext()
         {
-            return this.pos < this.lexemes.Count;
+            return TokenExistsAt(1);
+        }
+
+        private bool TokenExistsAt(int offset)
+        {
+            return (this.pos + offset) < this.lexemes.Count;
         }
 
         private void SkipWhiteSpace()
@@ -629,8 +739,13 @@ namespace PonscripterParser
 
         private Lexeme Peek()
         {
-            debug_lastViewedLexeme = this.lexemes[this.pos];
-            return this.lexemes[this.pos];
+            return Peek(0);
+        }
+
+        private Lexeme Peek(int offset)
+        {
+            debug_lastViewedLexeme = this.lexemes[this.pos + offset];
+            return this.lexemes[this.pos + offset];
         }
 
         private bool IsOperatorOfValue(params string[] allowedOperators)
