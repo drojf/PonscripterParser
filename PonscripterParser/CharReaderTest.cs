@@ -36,7 +36,7 @@ namespace PonscripterParser
             Pair(Regexes.hexColor, LexemeType.HEX_COLOR),
             Pair(Regexes.rSquareBracket, LexemeType.R_SQUARE_BRACKET),
             Pair(Regexes.rRoundBracket, LexemeType.R_ROUND_BRACKET),
-            Pair(Regexes.forwardSlash, LexemeType.FORWARD_SLASH),
+            //Pair(Regexes.forwardSlash, LexemeType.FORWARD_SLASH), //Handled as "operator /" for now...
             Pair(Regexes.backSlash, LexemeType.BACK_SLASH),
             Pair(Regexes.atSymbol, LexemeType.AT_SYMBOL),
             Pair(Regexes.numericLiteral, LexemeType.NUMERIC_LITERAL),
