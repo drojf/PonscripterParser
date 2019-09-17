@@ -2,13 +2,25 @@
 
 using System;
 using System.Collections.Generic;
+using System.IO;
+using System.Text;
 
 namespace PonscripterParser
 {
-    interface FunctionHandler
+    abstract class FunctionHandler
     {
-        string FunctionName();
-        void HandleFunctionNode(TreeWalker walker, FunctionNode function);
+        public abstract string FunctionName();
+        public abstract void HandleFunctionNode(TreeWalker walker, FunctionNode function);
+
+        public static T VerifyType<T>(Node n) {
+            switch(n)
+            {
+                case T node:
+                    return node;
+            }
+
+            throw new Exception($"Expected type {typeof(T)}, got {n.GetType()}");
+        }
     }
 
     class IgnoreCaseDictionary<V>
@@ -101,37 +113,103 @@ namespace PonscripterParser
     }
 
 
-    class NumAliasHandler : FunctionHandler
+    abstract class AliasHandler : FunctionHandler
     {
-        public string FunctionName() => "numalias";
-
-        public void HandleFunctionNode(TreeWalker walker, FunctionNode function)
+        public override void HandleFunctionNode(TreeWalker walker, FunctionNode function)
         {
-            //TODO: need to simplify parser tree format otherwise crashes here...
-            string aliasName = function.arguments[0].lexeme.text;
-            int aliasValue = int.Parse(function.arguments[1].lexeme.text);
+            //Force lowercase, as the game treats all keywords as case-insensitive
+            string aliasName = function.arguments[0].lexeme.text.ToLower();
+
+            string aliasValue = walker.TranslateExpression(function.arguments[1]);
 
             Log.Information($"Received numalias {aliasName} = {aliasValue}");
+            walker.scriptBuilder.body.AppendLine($"{FunctionName()}_{aliasName} = {aliasValue}");
 
-            walker.numAliasDictionary.Set(aliasName, aliasValue);
+            //walker.numAliasDictionary.Set(aliasName, aliasValue);
         }
     }
 
-    class StringAliasHandler : FunctionHandler
+
+
+    class StringAliasHandler : AliasHandler
     {
-        public string FunctionName() => "stralias";
-
-        public void HandleFunctionNode(TreeWalker walker, FunctionNode function)
-        {
-            string aliasName = function.arguments[0].lexeme.text;
-            string aliasValue = function.arguments[1].lexeme.text;
-
-            Log.Information($"Received numalias {aliasName} = {aliasValue}");
-
-            walker.stringAliasDictionary.Set(aliasName, aliasValue);
-        }
+        public override string FunctionName() => "stralias";
     }
 
+    class NumAliasHandler : AliasHandler
+    {
+        public override string FunctionName() => "numalias";
+    }
+
+
+    /*class VariableHandler
+    {
+        //handle string ($) variable, and numeric (%) variables
+
+        //"resolve variable" function
+
+        void ResolveNumericReference()
+        {
+            //?? how should this work?
+            //an interpreter would resolve this to a number
+            //need to figure out what this should resolve to for a cross-compiler.
+            //maybe doesn't resolve at all
+            //Probably best to work through some examples on paper on how it should be cross-compiled, or an intermediate representation.
+        }
+
+    }*/
+    class RenpyScriptBuilder
+    {
+        public StringBuilder init;
+        public StringBuilder body;
+        //public StreamWriter init;
+        //public StreamWriter body;
+
+        public RenpyScriptBuilder()
+        {
+            init = new StringBuilder(1_000_000);
+            body = new StringBuilder(10_000_000);
+            //init = new StreamWriter(new MemoryStream(1_000_000));
+            //body = new StreamWriter(new MemoryStream(10_000_000));
+        }
+
+        public void SaveFile(string outputPath)
+        {
+            //using(Stream writer = File.OpenWrite(outputPath))
+            using (StreamWriter writer = File.CreateText(outputPath))
+            {
+
+                //init.BaseStream.CopyTo(writer);
+                //body.BaseStream.CopyTo(writer);
+                //writer.Flush();
+                writer.Write(init.ToString());
+                writer.Write(body.ToString());
+            }
+        }
+
+        /*readonly StreamWriter writer;
+        readonly string outputPath;
+
+        public RenpyScriptBuilder(string outputPath)
+        {
+            this.outputPath = outputPath;
+            writer = File.CreateText(outputPath);
+            //Write init section here?
+        }
+
+        public void Dispose()
+        {
+            if (writer != null)
+            {
+                writer.Close();
+            }
+        }
+
+        public void WriteLine(string line)
+        {
+            writer.WriteLine(line);
+        }*/
+    }
 
     class TreeWalker
     {
@@ -139,18 +217,21 @@ namespace PonscripterParser
         FunctionHandlerLookup functionLookup;
         public IgnoreCaseDictionary<int> numAliasDictionary;
         public IgnoreCaseDictionary<string> stringAliasDictionary;
+        public RenpyScriptBuilder scriptBuilder;
 
-        public TreeWalker(List<Node> nodes)
+        public TreeWalker(List<Node> nodes, RenpyScriptBuilder scriptBuilder)
         {
             this.nodes = nodes;
 
             this.functionLookup = new FunctionHandlerLookup();
             this.numAliasDictionary = new IgnoreCaseDictionary<int>();
             this.stringAliasDictionary = new IgnoreCaseDictionary<string>();
+            this.scriptBuilder = scriptBuilder;
 
             //Register function handlers
             this.functionLookup.RegisterSystemFunction(new NumAliasHandler());
             this.functionLookup.RegisterSystemFunction(new StringAliasHandler());
+
 
             //switch(function.lexeme.text)
             //{
@@ -185,9 +266,9 @@ namespace PonscripterParser
                 {
                     Console.WriteLine($"Warning: Node {n} is not handled");
                 }
-
             }
         }
+
 
         private bool HandleNode(Node n)
         {
@@ -213,8 +294,51 @@ namespace PonscripterParser
             }
 
             return false;
+        }
 
+        public void DefineArray(ArrayReference node)
+        {
 
+        }
+
+        public string TranslateExpression(Node node)
+        {
+            switch(node)
+            {
+                case StringReferenceNode stringReference:
+                    return $"STRING_VARS[{TranslateExpression(stringReference.inner)}]";
+
+                case NumericReferenceNode numericReference:
+                    return $"NUM_VARS[{TranslateExpression(numericReference.inner)}]";
+
+                case BinaryOperatorNode bNode:
+                    return $"({bNode.left} {bNode.op} {bNode.right})";
+
+                case UnaryNode uNode:
+                    return $"{uNode.lexeme.text}{TranslateExpression(uNode.inner)}";
+
+                case AliasNode aNode:
+                    return aNode.lexeme.text;
+
+                case ArrayReference arrayNode:
+                    StringBuilder sb = new StringBuilder();
+                    sb.Append(arrayNode.arrayName);
+                    foreach(Node bracketedNode in arrayNode.nodes)
+                    {
+                        sb.Append($"[{TranslateExpression(bracketedNode)}]");
+                    }
+                    return sb.ToString();
+
+                //TODO: could implement type checking for string/numeric types, but should do as part of a seprate process
+                case StringLiteral stringLiteral:
+                    return stringLiteral.lexeme.text;
+
+                case NumericLiteral numericLiteral:
+                    return numericLiteral.lexeme.text;
+
+                default:
+                    throw new Exception($"Resolve reference couldn't handle node {node}");
+            }
         }
     }
 }

@@ -26,7 +26,7 @@ namespace PonscripterParser
 
     class NumericReferenceNode : Node
     {
-        Node inner;
+        public Node inner;
         public NumericReferenceNode(Lexeme lexeme, Node inner) : base(lexeme) {
             this.inner = inner;
         }
@@ -34,7 +34,7 @@ namespace PonscripterParser
 
     class StringReferenceNode : Node
     {
-        Node inner;
+        public Node inner;
         public StringReferenceNode(Lexeme lexeme, Node inner) : base(lexeme)
         {
             this.inner = inner;
@@ -50,8 +50,8 @@ namespace PonscripterParser
 
     class ArrayReference : Node
     {
-        List<Node> nodes;
-        Lexeme arrayName;
+        public List<Node> nodes;
+        public Lexeme arrayName;
         public ArrayReference(Lexeme lexeme, Lexeme arrayName) : base(lexeme)
         {
             this.nodes = new List<Node>();
@@ -152,7 +152,7 @@ namespace PonscripterParser
         }
     }
 
-    class OperatorListNode : Node
+    /*class OperatorListNode : Node
     {
         List<Node> nodes;
 
@@ -165,18 +165,25 @@ namespace PonscripterParser
         {
             this.nodes.Add(node);
         }
-    }
+    }*/
 
-    class OperatorNode : Node
+    class BinaryOperatorNode : Node
     {
-        public OperatorNode(Lexeme lexeme) : base(lexeme)
+        public Lexeme op;
+        public Node left;
+        public Node right;
+
+        public BinaryOperatorNode(Node left, Lexeme op, Node right) : base(null)
         {
+            this.op = op;
+            this.left = left;
+            this.right = right;
         }
     }
 
     class UnaryNode : Node
     {
-        Node inner;
+        public Node inner;
         public UnaryNode(Lexeme lexeme, Node inner) : base(lexeme)
         {
             this.inner = inner;
@@ -479,60 +486,66 @@ namespace PonscripterParser
 
         public Node HandleLogical()
         {
-            OperatorListNode list = new OperatorListNode();
+            //Defer handling to other, higher precedence functions, and save the result to the expression accumulator
+            Node expressionAccumulator = HandleComparison();
 
-            list.push(HandleComparison());
             SkipWhiteSpace();
             while (HasNext() && IsOperatorOfValue("&&", "&"))
             {
+                //if something can be handled, the current accumulator (already parsed lexemes) becomes the "left" 
+                // side of the tree, while the things yet to be parsed become the "right" side of the tree
                 SkipWhiteSpace();
-                list.push(new OperatorNode(Pop()));
+                Lexeme op = Pop();
                 SkipWhiteSpace();
-                list.push(HandleComparison());
+                Node right = HandleComparison();
+
+                //Finally, save the result back into the expressionAccumulator - if another op is found, it will become the "left" side of the tree
+                expressionAccumulator = new BinaryOperatorNode(expressionAccumulator, op, right);
             }
 
-            return list;
+            return expressionAccumulator;
         }
 
         public Node HandleComparison()
         {
-            OperatorListNode list = new OperatorListNode();
+            Node expressionAccumulator = HandleAddition();
 
-            list.push(HandleAddition());
             SkipWhiteSpace();
             while (HasNext() && IsOperatorOfValue("==", "!=", "<>", ">=", "<=", ">", "<", "="))
             {
                 SkipWhiteSpace();
-                list.push(new OperatorNode(Pop()));
+                Lexeme op = Pop();
                 SkipWhiteSpace();
-                list.push(HandleAddition());
+                Node right = HandleAddition();
+
+                expressionAccumulator = new BinaryOperatorNode(expressionAccumulator, op, right);
             }
 
-            return list;
+            return expressionAccumulator;
         }
 
         public Node HandleAddition()
         {
-            OperatorListNode list = new OperatorListNode();
+            Node expressionAccumulator = HandleTimes();
 
-            list.push(HandleTimes());
             SkipWhiteSpace();
             while (HasNext() && IsOperatorOfValue("+", "-"))
             {
                 SkipWhiteSpace();
-                list.push(new OperatorNode(Pop()));
+                Lexeme op = Pop();
                 SkipWhiteSpace();
-                list.push(HandleTimes());
+                Node right = HandleTimes();
+
+                expressionAccumulator = new BinaryOperatorNode(expressionAccumulator, op, right);
             }
 
-            return list;
+            return expressionAccumulator;
         }
 
         public Node HandleTimes()
         {
-            OperatorListNode list = new OperatorListNode();
+            Node expressionAccumulator = HandleUnary();
 
-            list.push(HandleUnary());
             SkipWhiteSpace();
             while (HasNext() && IsOperatorOfValue("*", "/"))
             {
@@ -548,7 +561,7 @@ namespace PonscripterParser
                 {
                     if (!TokenExistsAt(offset))
                     {
-                        return list;
+                        return expressionAccumulator;
                     }
 
                     futureLexeme = Peek(offset);
@@ -556,12 +569,14 @@ namespace PonscripterParser
                 } while (futureLexeme.type == LexemeType.COMMENT || futureLexeme.type == LexemeType.WHITESPACE);
 
                 SkipWhiteSpace();
-                list.push(new OperatorNode(Pop()));
+                Lexeme op = Pop();
                 SkipWhiteSpace();
-                list.push(HandleUnary());
+                Node right = HandleUnary();
+
+                expressionAccumulator = new BinaryOperatorNode(expressionAccumulator, op, right);
             }
 
-            return list;
+            return expressionAccumulator;
         }
 
         public Node HandleUnary()
