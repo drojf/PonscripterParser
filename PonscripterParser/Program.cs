@@ -133,6 +133,8 @@ namespace PonscripterParser
 
             CodeBlocks cbs = ReadSegments(lines);
 
+            // Write to Init Region
+            scriptBuilder.SetInitRegion();
             foreach (string line in cbs.header)
             {
                 ProcessLine(line, subroutineDatabase, scriptBuilder, walker, isProgramBlock: true);
@@ -143,6 +145,8 @@ namespace PonscripterParser
                 ProcessLine(line, subroutineDatabase, scriptBuilder, walker, isProgramBlock: true);
             }
 
+            // Write to Body Region
+            scriptBuilder.SetBodyRegion();
 
 
             scriptBuilder.SaveFile("test_output.txt");

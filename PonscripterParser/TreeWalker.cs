@@ -121,30 +121,30 @@ namespace PonscripterParser
 
         public override void HandleFunctionNode(TreeWalker walker, FunctionNode function)
         {
-            StringBuilder bodyBuilder = walker.scriptBuilder.body;
+            StringBuilder tempBuilder = new StringBuilder();
             List<Node> arguments = function.GetArguments();
             int argCount = arguments.Count;
-            
-            bodyBuilder.Append($"call {function.lexeme.text}");
+
+            tempBuilder.Append($"call {function.lexeme.text}");
 
             if(argCount > 0)
             {
-                bodyBuilder.Append("(");
+                tempBuilder.Append("(");
 
                 //append the first argument
-                bodyBuilder.Append(walker.TranslateExpression(arguments[0]));
+                tempBuilder.Append(walker.TranslateExpression(arguments[0]));
 
                 //append subsequent arguments
                 for (int i = 1; i < argCount; i++)
                 {
-                    bodyBuilder.Append(", ");
-                    bodyBuilder.Append(walker.TranslateExpression(arguments[i]));
+                    tempBuilder.Append(", ");
+                    tempBuilder.Append(walker.TranslateExpression(arguments[i]));
                 }
 
-                bodyBuilder.Append(")");
+                tempBuilder.Append(")");
             }
 
-            bodyBuilder.AppendLine();
+            walker.scriptBuilder.AppendLine(tempBuilder.ToString());
         }
     }
 
@@ -157,7 +157,7 @@ namespace PonscripterParser
             List<Node> arguments = function.GetArguments(2);
             string lvalue = walker.TranslateExpression(arguments[0]);
             string assigned_value = walker.TranslateExpression(arguments[1]);
-            walker.scriptBuilder.body.AppendLine($"{lvalue} {Op()} {assigned_value}");
+            walker.scriptBuilder.AppendLine($"{lvalue} {Op()} {assigned_value}");
         }
     }
     class IncHandler : FunctionHandler
@@ -168,7 +168,7 @@ namespace PonscripterParser
         {
             List<Node> arguments = function.GetArguments(1);
             string lvalue = walker.TranslateExpression(arguments[0]);
-            walker.scriptBuilder.body.AppendLine($"{lvalue} += 1");
+            walker.scriptBuilder.AppendLine($"{lvalue} += 1");
         }
     }
 
@@ -180,7 +180,7 @@ namespace PonscripterParser
         {
             List<Node> arguments = function.GetArguments(1);
             string lvalue = walker.TranslateExpression(arguments[0]);
-            walker.scriptBuilder.body.AppendLine($"{lvalue} -= 1");
+            walker.scriptBuilder.AppendLine($"{lvalue} -= 1");
         }
     }
 
@@ -210,7 +210,7 @@ namespace PonscripterParser
             string aliasValue = walker.TranslateExpression(arguments[1]);
 
             Log.Information($"Received numalias {aliasName} = {aliasValue}");
-            walker.scriptBuilder.body.AppendLine($"{FunctionName()}_{aliasName} = {aliasValue}");
+            walker.scriptBuilder.AppendLine($"{FunctionName()}_{aliasName} = {aliasValue}");
         }
     }
 
@@ -237,13 +237,16 @@ namespace PonscripterParser
 
     class RenpyScriptBuilder
     {
-        public StringBuilder init;
-        public StringBuilder body;
+        StringBuilder init;
+        StringBuilder body;
+        StringBuilder current; //set to either init or body
+        string tabString = "    ";
 
         public RenpyScriptBuilder()
         {
             init = new StringBuilder(1_000_000);
             body = new StringBuilder(10_000_000);
+            current = init;
         }
 
         public void SaveFile(string outputPath)
@@ -253,6 +256,26 @@ namespace PonscripterParser
                 writer.Write(init.ToString());
                 writer.Write(body.ToString());
             }
+        }
+
+        public void SetInitRegion()
+        {
+            current = init;
+        }
+        public void SetBodyRegion()
+        {
+            current = body;
+        }
+
+        //still unsure how this should work....
+        public void AppendLine(string line, bool no_indent = false)
+        {
+            if(!no_indent)
+            {
+                current.Append(tabString);
+            }
+
+            current.AppendLine(line);
         }
     }
 
@@ -304,6 +327,12 @@ namespace PonscripterParser
 
                 case FunctionNode function:
                     return HandleFunction(function);
+
+                case LabelNode labelNode:
+                    //Labels should be emitted with zero indent - normal calls emitted with indent 1 (which are in the start: section)
+                    string labelName = labelNode.lexeme.text.TrimStart(new char[] { '*' });
+                    scriptBuilder.AppendLine($"label {labelName}(*args):", no_indent:true);
+                    return true;
             }
 
             return false;
@@ -345,6 +374,7 @@ namespace PonscripterParser
                     return aNode.lexeme.text;
 
                 case ArrayReference arrayNode:
+                    //TODO: each dim'd array should use a custom python object which handles if read/written value is out of range without crashing
                     StringBuilder sb = new StringBuilder();
                     sb.Append(MangleArrayName(arrayNode.arrayName.text));
                     foreach(Node bracketedNode in arrayNode.nodes)
@@ -359,6 +389,20 @@ namespace PonscripterParser
 
                 case NumericLiteral numericLiteral:
                     return numericLiteral.lexeme.text;
+
+                case LabelNode _:
+                    //No user defined functions should take labels as arguments
+                    //If a system function takes a label as argument, it should be handled separately, not here
+                    throw new NotImplementedException();
+
+                case ReturnNode returnNode:
+                    if(returnNode.returnDestination != null)
+                    {
+                        throw new NotImplementedException();
+                    }
+
+                    //TODO: return should have indent, but after return, indent should be removed
+                    return "return";
 
                 default:
                     throw new Exception($"Resolve reference couldn't handle node {node}");

@@ -17,7 +17,7 @@ namespace PonscripterParser
 
     class LabelNode : Node
     {
-        string labelName;
+        public string labelName;
         public LabelNode(Lexeme lexeme) : base(lexeme)
         {
             labelName = lexeme.text.TrimStart(new char[] { '*' });
@@ -249,7 +249,7 @@ namespace PonscripterParser
     class ReturnNode : Node
     {
         //this is never used/never happens in the umineko scripts
-        LabelNode returnDestination; //can be null if no return destination given.
+        public LabelNode returnDestination; //can be null if no return destination given.
         public ReturnNode(Lexeme lexeme, LabelNode returnDestination) : base(lexeme)
         {
             this.returnDestination = returnDestination;
