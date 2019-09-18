@@ -175,8 +175,6 @@ namespace PonscripterParser
 
             Log.Information($"Received numalias {aliasName} = {aliasValue}");
             walker.scriptBuilder.body.AppendLine($"{FunctionName()}_{aliasName} = {aliasValue}");
-
-            //walker.numAliasDictionary.Set(aliasName, aliasValue);
         }
     }
 
@@ -190,74 +188,25 @@ namespace PonscripterParser
         public override string FunctionName() => "numalias";
     }
 
-
-    /*class VariableHandler
-    {
-        //handle string ($) variable, and numeric (%) variables
-
-        //"resolve variable" function
-
-        void ResolveNumericReference()
-        {
-            //?? how should this work?
-            //an interpreter would resolve this to a number
-            //need to figure out what this should resolve to for a cross-compiler.
-            //maybe doesn't resolve at all
-            //Probably best to work through some examples on paper on how it should be cross-compiled, or an intermediate representation.
-        }
-
-    }*/
     class RenpyScriptBuilder
     {
         public StringBuilder init;
         public StringBuilder body;
-        //public StreamWriter init;
-        //public StreamWriter body;
 
         public RenpyScriptBuilder()
         {
             init = new StringBuilder(1_000_000);
             body = new StringBuilder(10_000_000);
-            //init = new StreamWriter(new MemoryStream(1_000_000));
-            //body = new StreamWriter(new MemoryStream(10_000_000));
         }
 
         public void SaveFile(string outputPath)
         {
-            //using(Stream writer = File.OpenWrite(outputPath))
             using (StreamWriter writer = File.CreateText(outputPath))
             {
-
-                //init.BaseStream.CopyTo(writer);
-                //body.BaseStream.CopyTo(writer);
-                //writer.Flush();
                 writer.Write(init.ToString());
                 writer.Write(body.ToString());
             }
         }
-
-        /*readonly StreamWriter writer;
-        readonly string outputPath;
-
-        public RenpyScriptBuilder(string outputPath)
-        {
-            this.outputPath = outputPath;
-            writer = File.CreateText(outputPath);
-            //Write init section here?
-        }
-
-        public void Dispose()
-        {
-            if (writer != null)
-            {
-                writer.Close();
-            }
-        }
-
-        public void WriteLine(string line)
-        {
-            writer.WriteLine(line);
-        }*/
     }
 
     class TreeWalker
@@ -284,30 +233,6 @@ namespace PonscripterParser
             this.functionLookup.RegisterSystemFunction(new AddHandler());
             this.functionLookup.RegisterSystemFunction(new IncHandler());
             this.functionLookup.RegisterSystemFunction(new DecHandler());
-
-            //switch(function.lexeme.text)
-            //{
-            //    case "numalias":
-            //        break;
-
-            //    case "stralias":
-            //        break;
-
-            //    case "defsub":
-            //        break;
-
-            //    case "mov":
-            //        break;
-
-            //    case "gosub":
-            //        break;
-
-            //    case "goto":
-            //        break;
-
-            //    case "bg":
-            //        break;
-            //}
         }
 
         public void Walk()
