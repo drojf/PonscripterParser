@@ -235,6 +235,20 @@ namespace PonscripterParser
         }
     }
 
+    class GetParamHandler : FunctionHandler
+    {
+        public override string FunctionName() => "getparam";
+
+        public override void HandleFunctionNode(TreeWalker walker, FunctionNode function)
+        {
+            for(int i = 0; i < function.GetArguments().Count; i++)
+            {
+                string s = walker.TranslateExpression(function.GetArguments()[i]);
+                walker.scriptBuilder.AppendLine($"{s} = args[{i}]");
+            }           
+        }
+    }
+
     class RenpyScriptBuilder
     {
         StringBuilder init;
@@ -270,6 +284,10 @@ namespace PonscripterParser
         //still unsure how this should work....
         public void AppendLine(string line, bool no_indent = false)
         {
+            //Label: 0 indent
+            //Text/Dialogue: 1 indent
+            //Python start: 1 indent
+            //Python code: 2 indent
             if(!no_indent)
             {
                 current.Append(tabString);
@@ -303,6 +321,7 @@ namespace PonscripterParser
             this.functionLookup.RegisterSystemFunction(new IncHandler());
             this.functionLookup.RegisterSystemFunction(new DecHandler());
             this.functionLookup.RegisterSystemFunction(new DefSubHandler());
+            this.functionLookup.RegisterSystemFunction(new GetParamHandler());
         }
 
         public void Walk(List<Node> nodes)
@@ -406,8 +425,6 @@ namespace PonscripterParser
                     {
                         throw new NotImplementedException();
                     }
-
-                    //TODO: return should have indent, but after return, indent should be removed
                     return "return";
 
                 default:
