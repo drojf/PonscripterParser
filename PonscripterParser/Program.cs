@@ -43,6 +43,7 @@ namespace PonscripterParser
         static void ProcessLine(string line, SubroutineDatabase subroutineDatabase, RenpyScriptBuilder scriptBuilder, TreeWalker walker, bool isProgramBlock)
         {
             Console.WriteLine(line);
+            scriptBuilder.AppendLine($"# {line}");
 
             LexerTest test = new LexerTest(line, subroutineDatabase);
             test.LexSection(isProgramBlock);
@@ -55,7 +56,7 @@ namespace PonscripterParser
 
         static string[] LoadScript()
         {
-            const string script_name = @"C:\drojf\large_projects\umineko\umineko-question\InDevelopment\ManualUpdates\0.utf"; //@"example_input.txt";
+            const string script_name = @"C:\drojf\large_projects\umineko\umineko-question\InDevelopment\ManualUpdates\0_short.utf"; //@"example_input.txt";
             return File.ReadAllLines(script_name);
         }
 
