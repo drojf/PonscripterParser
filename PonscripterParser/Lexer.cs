@@ -26,7 +26,7 @@ namespace PonscripterParser
         int pos;
         SubroutineDatabase subroutineDatabase;
 
-        List<RegexLexemeTypePair> pairs = new List<RegexLexemeTypePair>()
+        static List<RegexLexemeTypePair> pairs = new List<RegexLexemeTypePair>()
         {
             Pair(Regexes.comment, LexemeType.COMMENT),
             Pair(Regexes.colon, LexemeType.COLON),
@@ -44,7 +44,7 @@ namespace PonscripterParser
             Pair(Regexes.hatStringLiteral, LexemeType.HAT_STRING_LITERAL),
         };
 
-        List<RegexLexemeTypePair> nextMustBeExpressionList = new List<RegexLexemeTypePair>()
+        static List<RegexLexemeTypePair> nextMustBeExpressionList = new List<RegexLexemeTypePair>()
         {
             Pair(Regexes.lSquareBracket, LexemeType.L_SQUARE_BRACKET),
             Pair(Regexes.lRoundBracket, LexemeType.L_ROUND_BRACKET),
@@ -54,7 +54,7 @@ namespace PonscripterParser
         };
 
 
-        List<RegexLexemeTypePair> operators = new List<RegexLexemeTypePair>()
+        static List<RegexLexemeTypePair> operators = new List<RegexLexemeTypePair>()
         {
             Pair(@">=", LexemeType.OPERATOR),
             Pair(@"<=",LexemeType.OPERATOR),
