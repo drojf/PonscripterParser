@@ -43,7 +43,7 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="Regexes.cs" />
-    <Compile Include="CharReaderTest.cs" />
+    <Compile Include="Lexer.cs" />
     <Compile Include="CustomExceptions.cs" />
     <Compile Include="LexemeType.cs" />
     <Compile Include="Parser.cs" />
