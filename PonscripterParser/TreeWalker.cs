@@ -112,15 +112,66 @@ namespace PonscripterParser
         }
     }
 
+    abstract class BinaryOpFunction : FunctionHandler
+    {
+        abstract public string Op();
+
+        public override void HandleFunctionNode(TreeWalker walker, FunctionNode function)
+        {
+            List<Node> arguments = function.GetArguments(2);
+            string lvalue = walker.TranslateExpression(arguments[0]);
+            string assigned_value = walker.TranslateExpression(arguments[1]);
+            walker.scriptBuilder.body.AppendLine($"{lvalue} {Op()} {assigned_value}");
+        }
+    }
+    class IncHandler : FunctionHandler
+    {
+        public override string FunctionName() => "inc";
+
+        public override void HandleFunctionNode(TreeWalker walker, FunctionNode function)
+        {
+            List<Node> arguments = function.GetArguments(1);
+            string lvalue = walker.TranslateExpression(arguments[0]);
+            walker.scriptBuilder.body.AppendLine($"{lvalue} += 1");
+        }
+    }
+
+    class DecHandler : FunctionHandler
+    {
+        public override string FunctionName() => "dec";
+
+        public override void HandleFunctionNode(TreeWalker walker, FunctionNode function)
+        {
+            List<Node> arguments = function.GetArguments(1);
+            string lvalue = walker.TranslateExpression(arguments[0]);
+            walker.scriptBuilder.body.AppendLine($"{lvalue} -= 1");
+        }
+    }
+
+    class AddHandler : BinaryOpFunction
+    {
+        public override string FunctionName() => "add";
+        
+        public override string Op() => "+=";
+    }
+
+    class MovHandler : BinaryOpFunction
+    {
+        public override string FunctionName() => "mov";
+
+        public override string Op() => "=";
+    }
 
     abstract class AliasHandler : FunctionHandler
     {
         public override void HandleFunctionNode(TreeWalker walker, FunctionNode function)
         {
-            //Force lowercase, as the game treats all keywords as case-insensitive
-            string aliasName = function.arguments[0].lexeme.text.ToLower();
+            List<Node> arguments = function.GetArguments(2);
 
-            string aliasValue = walker.TranslateExpression(function.arguments[1]);
+            //Force lowercase, as the game treats all keywords as case-insensitive
+            string aliasName = arguments[0].lexeme.text.ToLower();
+
+            string aliasValue = walker.TranslateExpression(arguments[1]);
 
             Log.Information($"Received numalias {aliasName} = {aliasValue}");
             walker.scriptBuilder.body.AppendLine($"{FunctionName()}_{aliasName} = {aliasValue}");
@@ -128,8 +179,6 @@ namespace PonscripterParser
             //walker.numAliasDictionary.Set(aliasName, aliasValue);
         }
     }
-
-
 
     class StringAliasHandler : AliasHandler
     {
@@ -231,7 +280,10 @@ namespace PonscripterParser
             //Register function handlers
             this.functionLookup.RegisterSystemFunction(new NumAliasHandler());
             this.functionLookup.RegisterSystemFunction(new StringAliasHandler());
-
+            this.functionLookup.RegisterSystemFunction(new MovHandler());
+            this.functionLookup.RegisterSystemFunction(new AddHandler());
+            this.functionLookup.RegisterSystemFunction(new IncHandler());
+            this.functionLookup.RegisterSystemFunction(new DecHandler());
 
             //switch(function.lexeme.text)
             //{
@@ -306,13 +358,13 @@ namespace PonscripterParser
             switch(node)
             {
                 case StringReferenceNode stringReference:
-                    return $"STRING_VARS[{TranslateExpression(stringReference.inner)}]";
+                    return GenerateStringAlias(TranslateExpression(stringReference.inner));
 
                 case NumericReferenceNode numericReference:
-                    return $"NUM_VARS[{TranslateExpression(numericReference.inner)}]";
+                    return GenerateNumAlias(TranslateExpression(numericReference.inner));
 
                 case BinaryOperatorNode bNode:
-                    return $"({bNode.left} {bNode.op} {bNode.right})";
+                    return $"({bNode.left} {TranslateOperatorForRenpy(bNode.op.text)} {bNode.right})";
 
                 case UnaryNode uNode:
                     return $"{uNode.lexeme.text}{TranslateExpression(uNode.inner)}";
@@ -331,7 +383,7 @@ namespace PonscripterParser
 
                 //TODO: could implement type checking for string/numeric types, but should do as part of a seprate process
                 case StringLiteral stringLiteral:
-                    return stringLiteral.lexeme.text;
+                    return $"r\"{stringLiteral.lexeme.text.Trim(new char[] { '"' })}\"";
 
                 case NumericLiteral numericLiteral:
                     return numericLiteral.lexeme.text;
@@ -339,6 +391,33 @@ namespace PonscripterParser
                 default:
                     throw new Exception($"Resolve reference couldn't handle node {node}");
             }
+        }
+
+        public string GenerateNumAlias(string lookupValue)
+        {
+            return $"variable_array[{lookupValue}]";
+        }
+
+        public string GenerateStringAlias(string lookupValue)
+        {
+            return $"string_array[{lookupValue}]";
+        }
+
+        private string TranslateOperatorForRenpy(string op)
+        {
+            switch (op)
+            {
+                case "<>":
+                    return "!=";
+
+                case "=":
+                    return "==";
+
+                case "&":
+                    return "&&";
+            }
+
+            return op;
         }
     }
 }

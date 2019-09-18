@@ -66,7 +66,7 @@ namespace PonscripterParser
 
     class FunctionNode : Node
     {
-        public List<Node> arguments;
+        List<Node> arguments;
 
         public FunctionNode(Lexeme lexeme) : base(lexeme)
         {
@@ -76,6 +76,20 @@ namespace PonscripterParser
         public void AddArgument(Node node)
         {
             arguments.Add(node);
+        }
+
+        public List<Node> GetArguments(int expected)
+        {
+            if(arguments.Count != expected)
+            {
+                throw new PonscripterWrongNumArguments();
+            }
+
+            return GetArguments();
+        }
+        public List<Node> GetArguments()
+        {
+            return this.arguments;
         }
     }
 

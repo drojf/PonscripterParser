@@ -20,4 +20,19 @@ namespace PonscripterParser
         {
         }
     }
+
+    class PonscripterWrongNumArguments : Exception
+    {
+        public PonscripterWrongNumArguments()
+        {
+        }
+
+        public PonscripterWrongNumArguments(string message) : base(message)
+        {
+        }
+
+        public PonscripterWrongNumArguments(string message, Exception innerException) : base(message, innerException)
+        {
+        }
+    }
 }
