@@ -385,7 +385,13 @@ namespace PonscripterParser
 
                 //TODO: could implement type checking for string/numeric types, but should do as part of a seprate process
                 case StringLiteral stringLiteral:
-                    return $"r\"{stringLiteral.lexeme.text.Trim(new char[] { '"' })}\"";
+                    string stringWithQuotes = stringLiteral.lexeme.text;
+                    if (stringWithQuotes[0] != '"' || stringWithQuotes[stringWithQuotes.Length - 1] != '"')
+                    {
+                        throw new Exception("Invalid string literal");
+                    }
+
+                    return EscapeStringForPython(stringWithQuotes.Substring(1, stringWithQuotes.Length - 2));
 
                 case NumericLiteral numericLiteral:
                     return numericLiteral.lexeme.text;
@@ -422,6 +428,11 @@ namespace PonscripterParser
         public string MangleArrayName(string arrayName)
         {
             return "pons_array_" + arrayName;
+        }
+
+        private string EscapeStringForPython(string s)
+        {
+            return $"r\"{s.Replace("\\", "\\\\").Replace("\"", "\\\"")}\"";
         }
 
         private string TranslateOperatorForRenpy(string op)
