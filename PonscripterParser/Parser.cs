@@ -503,8 +503,7 @@ namespace PonscripterParser
             //Defer handling to other, higher precedence functions, and save the result to the expression accumulator
             Node expressionAccumulator = HandleComparison();
 
-            SkipWhiteSpace();
-            while (HasCurrent() && IsOperatorOfValue("&&", "&"))
+            while (SkipWhiteSpace() && HasCurrent() && IsOperatorOfValue("&&", "&"))
             {
                 //if something can be handled, the current accumulator (already parsed lexemes) becomes the "left" 
                 // side of the tree, while the things yet to be parsed become the "right" side of the tree
@@ -524,8 +523,7 @@ namespace PonscripterParser
         {
             Node expressionAccumulator = HandleAddition();
 
-            SkipWhiteSpace();
-            while (HasCurrent() && IsOperatorOfValue("==", "!=", "<>", ">=", "<=", ">", "<", "="))
+            while (SkipWhiteSpace() && HasCurrent() && IsOperatorOfValue("==", "!=", "<>", ">=", "<=", ">", "<", "="))
             {
                 SkipWhiteSpace();
                 Lexeme op = Pop();
@@ -542,8 +540,7 @@ namespace PonscripterParser
         {
             Node expressionAccumulator = HandleTimes();
 
-            SkipWhiteSpace();
-            while (HasCurrent() && IsOperatorOfValue("+", "-"))
+            while (SkipWhiteSpace() && HasCurrent() && IsOperatorOfValue("+", "-"))
             {
                 SkipWhiteSpace();
                 Lexeme op = Pop();
@@ -560,8 +557,7 @@ namespace PonscripterParser
         {
             Node expressionAccumulator = HandleUnary();
 
-            SkipWhiteSpace();
-            while (HasCurrent() && IsOperatorOfValue("*", "/"))
+            while (SkipWhiteSpace() && HasCurrent() && IsOperatorOfValue("*", "/"))
             {
                 SkipWhiteSpace();
 
@@ -596,7 +592,7 @@ namespace PonscripterParser
         public Node HandleUnary()
         {
             SkipWhiteSpace();
-            if (HasCurrent() && IsOperatorOfValue("-"))
+            if (SkipWhiteSpace() && HasCurrent() && IsOperatorOfValue("-"))
             {
                 //TODO: Not sure if repeated unaries are allowed like `-----5` - allow for now.
                 return new UnaryNode(Pop(), HandleUnary());
@@ -766,12 +762,14 @@ namespace PonscripterParser
             return (this.pos + offset) < this.lexemes.Count;
         }
 
-        private void SkipWhiteSpace()
+        private bool SkipWhiteSpace()
         {
             while (HasCurrent() && Peek().type == LexemeType.WHITESPACE)
             {
                 Pop();
             }
+
+            return HasCurrent();
         }
 
         private Lexeme Peek()
