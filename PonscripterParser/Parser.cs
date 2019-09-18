@@ -276,12 +276,12 @@ namespace PonscripterParser
             this.pos = 0;
             //PrintLexemes(this.lexemes);
 
-            while (HasNext())
+            while (HasCurrent())
             {
                 //Console.WriteLine($"Processing {Peek()}");
 
                 SkipWhiteSpace();
-                if (!HasNext())
+                if (!HasCurrent())
                 {
                     break;
                 }
@@ -371,7 +371,7 @@ namespace PonscripterParser
             Lexeme returnWord = Pop();
             LabelNode returnDestination = null;
 
-            if(HasNext() && Peek().type == LexemeType.LABEL)
+            if(HasCurrent() && Peek().type == LexemeType.LABEL)
             {
                 returnDestination = new LabelNode(Pop());
             }
@@ -421,7 +421,7 @@ namespace PonscripterParser
 
             //optional 'step'
             SkipWhiteSpace();
-            if (HasNext() && Peek().type == LexemeType.WORD && Peek().text == "step")
+            if (HasCurrent() && Peek().type == LexemeType.WORD && Peek().text == "step")
             {
                 //literal 'step'
                 Pop();
@@ -448,7 +448,7 @@ namespace PonscripterParser
             }
 
             //If have reached the end of line/nothing left to parse, just return no arguments
-            if (!HasNext())
+            if (!HasCurrent())
             {
                 return functionNode;
             }
@@ -468,7 +468,7 @@ namespace PonscripterParser
 
                 functionNode.AddArgument(HandleExpression());
 
-                while (HasNext())
+                while (HasCurrent())
                 {
                     //Just assume there is one argument after each comma 
                     //If anything else is found besides a comma, assume function arguments have ended.
@@ -504,7 +504,7 @@ namespace PonscripterParser
             Node expressionAccumulator = HandleComparison();
 
             SkipWhiteSpace();
-            while (HasNext() && IsOperatorOfValue("&&", "&"))
+            while (HasCurrent() && IsOperatorOfValue("&&", "&"))
             {
                 //if something can be handled, the current accumulator (already parsed lexemes) becomes the "left" 
                 // side of the tree, while the things yet to be parsed become the "right" side of the tree
@@ -525,7 +525,7 @@ namespace PonscripterParser
             Node expressionAccumulator = HandleAddition();
 
             SkipWhiteSpace();
-            while (HasNext() && IsOperatorOfValue("==", "!=", "<>", ">=", "<=", ">", "<", "="))
+            while (HasCurrent() && IsOperatorOfValue("==", "!=", "<>", ">=", "<=", ">", "<", "="))
             {
                 SkipWhiteSpace();
                 Lexeme op = Pop();
@@ -543,7 +543,7 @@ namespace PonscripterParser
             Node expressionAccumulator = HandleTimes();
 
             SkipWhiteSpace();
-            while (HasNext() && IsOperatorOfValue("+", "-"))
+            while (HasCurrent() && IsOperatorOfValue("+", "-"))
             {
                 SkipWhiteSpace();
                 Lexeme op = Pop();
@@ -561,7 +561,7 @@ namespace PonscripterParser
             Node expressionAccumulator = HandleUnary();
 
             SkipWhiteSpace();
-            while (HasNext() && IsOperatorOfValue("*", "/"))
+            while (HasCurrent() && IsOperatorOfValue("*", "/"))
             {
                 SkipWhiteSpace();
 
@@ -596,7 +596,7 @@ namespace PonscripterParser
         public Node HandleUnary()
         {
             SkipWhiteSpace();
-            if (HasNext() && IsOperatorOfValue("-"))
+            if (HasCurrent() && IsOperatorOfValue("-"))
             {
                 //TODO: Not sure if repeated unaries are allowed like `-----5` - allow for now.
                 return new UnaryNode(Pop(), HandleUnary());
@@ -680,7 +680,7 @@ namespace PonscripterParser
                 throw GetParsingException("Got Array reference without array brackets");
             }
 
-            while(HasNext() && Peek().type == LexemeType.L_SQUARE_BRACKET)
+            while(HasCurrent() && Peek().type == LexemeType.L_SQUARE_BRACKET)
             {
                 //Handle a  '[' EXPRESSION ']'
                 Pop(LexemeType.L_SQUARE_BRACKET);
@@ -756,9 +756,9 @@ namespace PonscripterParser
             return temp;
         }
 
-        private bool HasNext()
+        private bool HasCurrent()
         {
-            return TokenExistsAt(1);
+            return TokenExistsAt(0);
         }
 
         private bool TokenExistsAt(int offset)
@@ -768,7 +768,7 @@ namespace PonscripterParser
 
         private void SkipWhiteSpace()
         {
-            while (HasNext() && Peek().type == LexemeType.WHITESPACE)
+            while (HasCurrent() && Peek().type == LexemeType.WHITESPACE)
             {
                 Pop();
             }

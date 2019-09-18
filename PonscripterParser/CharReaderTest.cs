@@ -108,11 +108,11 @@ namespace PonscripterParser
         {
             bool mustBeExpression = false;
             bool firstIteration = true;
-            while (HasNext())
+            while (HasCurrent())
             {
                 bool nextMustBeExpression = false;
                 TryPopRegex(Regexes.whitespace, LexemeType.WHITESPACE);
-                if(!HasNext())
+                if(!HasCurrent())
                 {
                     break;
                 }
@@ -217,7 +217,7 @@ namespace PonscripterParser
         private void PopDialogue()
         {
             int initial_position = this.pos;
-            while (HasNext())
+            while (HasCurrent())
             {
                 char next = Peek();
 
@@ -261,7 +261,7 @@ namespace PonscripterParser
             return m.Success;
         }
 
-        private bool HasNext()
+        private bool HasCurrent()
         {
             return this.pos < this.line.Length;
         }
@@ -293,7 +293,7 @@ namespace PonscripterParser
 
         private char Peek()
         {
-            if (!HasNext())
+            if (!HasCurrent())
             {
                 throw new Exception("CharReader ran out of characters - missing EOL check?");
             }
