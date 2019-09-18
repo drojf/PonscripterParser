@@ -346,7 +346,7 @@ namespace PonscripterParser
 
                 case ArrayReference arrayNode:
                     StringBuilder sb = new StringBuilder();
-                    sb.Append(arrayNode.arrayName);
+                    sb.Append(MangleArrayName(arrayNode.arrayName.text));
                     foreach(Node bracketedNode in arrayNode.nodes)
                     {
                         sb.Append($"[{TranslateExpression(bracketedNode)}]");
@@ -373,6 +373,11 @@ namespace PonscripterParser
         public string GenerateStringAlias(string lookupValue)
         {
             return $"string_array[{lookupValue}]";
+        }
+
+        public string MangleArrayName(string arrayName)
+        {
+            return "pons_array_" + arrayName;
         }
 
         private string TranslateOperatorForRenpy(string op)
