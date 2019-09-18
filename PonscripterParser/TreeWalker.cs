@@ -51,22 +51,21 @@ namespace PonscripterParser
     class FunctionHandlerLookup
     {
         IgnoreCaseDictionary<FunctionHandler> systemFunctions;
-        IgnoreCaseDictionary<FunctionHandler> userFunctions;
+        public IgnoreCaseDictionary<int> userFunctions;
 
         public FunctionHandlerLookup()
         {
             this.systemFunctions = new IgnoreCaseDictionary<FunctionHandler>();
-            this.userFunctions = new IgnoreCaseDictionary<FunctionHandler>();
-
-            //Register predefined functions here?
+            this.userFunctions = new IgnoreCaseDictionary<int>();
         }
 
-        public bool TryGetFunction(string functionName, out FunctionHandler retHandler)
+        public bool TryGetFunction(string functionName, out bool isUserFunction, out FunctionHandler retHandler)
         {
             //First, check user functions to see if function with name exists
-            if(this.userFunctions.TryGetValue(functionName, out FunctionHandler userFunction))
+            if(userFunctions.Contains(functionName))
             {
-                retHandler = userFunction;
+                retHandler = new UserFunctionHandler();
+                isUserFunction = true;
                 return true;
             }
 
@@ -74,6 +73,7 @@ namespace PonscripterParser
             if (this.systemFunctions.TryGetValue(functionName, out FunctionHandler systemFunction))
             {
                 retHandler = systemFunction;
+                isUserFunction = false;
                 return true;
             }
 
@@ -82,16 +82,19 @@ namespace PonscripterParser
                 this.systemFunctions.TryGetValue(functionName.Substring(1), out FunctionHandler overridenFunction))
             {
                 retHandler = overridenFunction;
+                isUserFunction = false;
                 return true;
             }
 
             retHandler = null;
+            isUserFunction = false;
             return false;
         }
 
-        public void RegisterUserFunction(FunctionHandler userFunctionHandler)
+        public void RegisterUserFunction(string s)
         {
-            RegisterFunctionWithCheck(userFunctions, userFunctionHandler);
+            userFunctions.Set(s, 0);
+            //RegisterFunctionWithCheck(userFunctions, userFunctionHandler);
         }
 
         public void RegisterSystemFunction(FunctionHandler systemFunctionHandler)
@@ -109,6 +112,39 @@ namespace PonscripterParser
             {
                 dict.Set(userFunctionHandler.FunctionName(), userFunctionHandler);
             }
+        }
+    }
+
+    class UserFunctionHandler : FunctionHandler
+    {
+        public override string FunctionName() { throw new NotSupportedException(); }
+
+        public override void HandleFunctionNode(TreeWalker walker, FunctionNode function)
+        {
+            StringBuilder bodyBuilder = walker.scriptBuilder.body;
+            List<Node> arguments = function.GetArguments();
+            int argCount = arguments.Count;
+            
+            bodyBuilder.Append($"call {function.lexeme.text}");
+
+            if(argCount > 0)
+            {
+                bodyBuilder.Append("(");
+
+                //append the first argument
+                bodyBuilder.Append(walker.TranslateExpression(arguments[0]));
+
+                //append subsequent arguments
+                for (int i = 1; i < argCount; i++)
+                {
+                    bodyBuilder.Append(", ");
+                    bodyBuilder.Append(walker.TranslateExpression(arguments[i]));
+                }
+
+                bodyBuilder.Append(")");
+            }
+
+            bodyBuilder.AppendLine();
         }
     }
 
@@ -188,6 +224,17 @@ namespace PonscripterParser
         public override string FunctionName() => "numalias";
     }
 
+    class DefSubHandler : FunctionHandler
+    {
+        public override string FunctionName() => "defsub";
+
+        public override void HandleFunctionNode(TreeWalker walker, FunctionNode function)
+        {
+            List<Node> arguments = function.GetArguments(1);
+            walker.functionLookup.RegisterUserFunction(arguments[0].lexeme.text);
+        }
+    }
+
     class RenpyScriptBuilder
     {
         public StringBuilder init;
@@ -211,16 +258,15 @@ namespace PonscripterParser
 
     class TreeWalker
     {
-        List<Node> nodes;
-        FunctionHandlerLookup functionLookup;
+        public FunctionHandlerLookup functionLookup;
         public IgnoreCaseDictionary<int> numAliasDictionary;
         public IgnoreCaseDictionary<string> stringAliasDictionary;
         public RenpyScriptBuilder scriptBuilder;
 
-        public TreeWalker(List<Node> nodes, RenpyScriptBuilder scriptBuilder)
-        {
-            this.nodes = nodes;
 
+
+        public TreeWalker(RenpyScriptBuilder scriptBuilder)
+        {
             this.functionLookup = new FunctionHandlerLookup();
             this.numAliasDictionary = new IgnoreCaseDictionary<int>();
             this.stringAliasDictionary = new IgnoreCaseDictionary<string>();
@@ -233,15 +279,16 @@ namespace PonscripterParser
             this.functionLookup.RegisterSystemFunction(new AddHandler());
             this.functionLookup.RegisterSystemFunction(new IncHandler());
             this.functionLookup.RegisterSystemFunction(new DecHandler());
+            this.functionLookup.RegisterSystemFunction(new DefSubHandler());
         }
 
-        public void Walk()
+        public void Walk(List<Node> nodes)
         {
             foreach(Node n in nodes)
             {
                 if(!HandleNode(n))
                 {
-                    Console.WriteLine($"Warning: Node {n} is not handled");
+                    Console.WriteLine($"Warning: Node {n}:{n.lexeme.text} is not handled");
                 }
             }
         }
@@ -264,7 +311,7 @@ namespace PonscripterParser
 
         private bool HandleFunction(FunctionNode function)
         {
-            if(this.functionLookup.TryGetFunction(function.lexeme.text, out FunctionHandler handler))
+            if(this.functionLookup.TryGetFunction(function.lexeme.text, out bool _isUserFunction, out FunctionHandler handler))
             {
                 handler.HandleFunctionNode(this, function);
                 return true;

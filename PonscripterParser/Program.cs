@@ -40,7 +40,7 @@ namespace PonscripterParser
 
     class Program
     {
-        static void ProcessLine(string line, SubroutineDatabase subroutineDatabase, RenpyScriptBuilder scriptBuilder, bool isProgramBlock)
+        static void ProcessLine(string line, SubroutineDatabase subroutineDatabase, RenpyScriptBuilder scriptBuilder, TreeWalker walker, bool isProgramBlock)
         {
             Console.WriteLine(line);
 
@@ -50,9 +50,7 @@ namespace PonscripterParser
             Parser p = new Parser(test.lexemes, subroutineDatabase);
             List<Node> nodes = p.Parse();
 
-            //TODO: don't initialize this each line...
-            TreeWalker walker = new TreeWalker(nodes, scriptBuilder);
-            walker.Walk();
+            walker.Walk(nodes);
         }
 
         static string[] LoadScript()
@@ -131,22 +129,23 @@ namespace PonscripterParser
         static void CompileScript(string[] lines, SubroutineDatabase subroutineDatabase)
         {
             RenpyScriptBuilder scriptBuilder = new RenpyScriptBuilder();
+            TreeWalker walker = new TreeWalker(scriptBuilder);
 
             CodeBlocks cbs = ReadSegments(lines);
 
             foreach (string line in cbs.header)
             {
-                ProcessLine(line, subroutineDatabase, scriptBuilder, isProgramBlock: true);
+                ProcessLine(line, subroutineDatabase, scriptBuilder, walker, isProgramBlock: true);
             }
 
             foreach (string line in cbs.definition)
             {
-                ProcessLine(line, subroutineDatabase, scriptBuilder, isProgramBlock: true);
+                ProcessLine(line, subroutineDatabase, scriptBuilder, walker, isProgramBlock: true);
             }
 
 
-            scriptBuilder.SaveFile("test_output.txt");
 
+            scriptBuilder.SaveFile("test_output.txt");
             /*foreach (string line in cbs.program)
             {
                 ProcessLine(line, subroutineDatabase, isProgramBlock: true);
