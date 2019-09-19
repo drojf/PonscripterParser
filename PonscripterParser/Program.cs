@@ -51,7 +51,7 @@ namespace PonscripterParser
             Parser p = new Parser(test.lexemes, subroutineDatabase);
             List<Node> nodes = p.Parse();
 
-            walker.Walk(nodes);
+            walker.WalkOneLine(nodes);
         }
 
         static string[] LoadScript()

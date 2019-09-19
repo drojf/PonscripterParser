@@ -255,12 +255,16 @@ namespace PonscripterParser
         StringBuilder body;
         StringBuilder current; //set to either init or body
         string tabString = "    ";
+        int temporaryIndent;
+        int permanentIndent;
 
         public RenpyScriptBuilder()
         {
             init = new StringBuilder(1_000_000);
             body = new StringBuilder(10_000_000);
             current = init;
+            permanentIndent = 1;
+            temporaryIndent = 0;
         }
 
         public void SaveFile(string outputPath)
@@ -281,6 +285,29 @@ namespace PonscripterParser
             current = body;
         }
 
+        public void ModifyIndentPermanently(int relativeChange)
+        {
+            permanentIndent += relativeChange;
+            if (permanentIndent < 1)
+            {
+                throw new Exception("Permanent Indent became less than 1 - missing for loop terminator?");
+            }
+        }
+
+        public void ModifyIndentTemporarily(int relativeChange)
+        {
+            temporaryIndent += relativeChange;
+            if(temporaryIndent < 0)
+            {
+                throw new Exception("Temporary Indent became less than 0");
+            }
+        }
+
+        public void ResetIndentAtEndOfLine()
+        {
+            temporaryIndent = 0;
+        }
+
         //still unsure how this should work....
         public void AppendLine(string line, bool no_indent = false)
         {
@@ -288,9 +315,13 @@ namespace PonscripterParser
             //Text/Dialogue: 1 indent
             //Python start: 1 indent
             //Python code: 2 indent
+            //If/for statements etc: 3 indent?
             if(!no_indent)
             {
-                current.Append(tabString);
+                for(int i = 0; i < (permanentIndent + temporaryIndent); i++)
+                {
+                    current.Append(tabString);
+                }
             }
 
             current.AppendLine(line);
@@ -324,7 +355,7 @@ namespace PonscripterParser
             this.functionLookup.RegisterSystemFunction(new GetParamHandler());
         }
 
-        public void Walk(List<Node> nodes)
+        public void WalkOneLine(List<Node> nodes)
         {
             foreach(Node n in nodes)
             {
@@ -333,6 +364,9 @@ namespace PonscripterParser
                     Console.WriteLine($"Warning: Node {n}:{n.lexeme.text} is not handled");
                 }
             }
+
+            //reset if statement marker upon reaching line end
+            scriptBuilder.ResetIndentAtEndOfLine();
         }
 
 
