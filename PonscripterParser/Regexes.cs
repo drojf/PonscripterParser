@@ -56,6 +56,8 @@ namespace PonscripterParser
 
         public static Regex comma = RegexFromStart(@",", RegexOptions.IgnoreCase);
 
+        public static Regex exclamationTextCommand = RegexFromStart(@"(!(s|d|w)\d+)|(!sd)", RegexOptions.IgnoreCase);
+
         public static Regex RegexFromStart(string s, RegexOptions options)
         {
             return new Regex(@"\G" + s, options);

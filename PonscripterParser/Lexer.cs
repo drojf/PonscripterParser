@@ -117,7 +117,9 @@ namespace PonscripterParser
                     break;
                 }
 
-                if (!mustBeExpression && sectionAllowsText && (Peek() == '^' || Peek() == '!' || Peek() > 255))
+                if (!mustBeExpression && 
+                    sectionAllowsText && 
+                    (Peek() == '^' || Regexes.exclamationTextCommand.IsMatch(this.line, this.pos) || Peek() > 255))
                 {
 
                     //only allow entering text mode if:
