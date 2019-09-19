@@ -44,7 +44,7 @@ namespace PonscripterParser
 
         public bool Contains(string key)
         {
-            return this.innerDictionary.ContainsKey(key);
+            return this.innerDictionary.ContainsKey(key.ToLower());
         }
     }
 
