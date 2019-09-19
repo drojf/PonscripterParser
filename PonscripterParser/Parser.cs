@@ -126,10 +126,23 @@ namespace PonscripterParser
 
     class IfStatementNode : Node
     {
-        Node condition;
+        public Node condition;
+        public bool isInverted;
         public IfStatementNode(Lexeme lexeme, Node condition) : base(lexeme)
         {
             this.condition = condition;
+            if(lexeme.text == "if")
+            {
+                isInverted = true;
+            }
+            else if(lexeme.text == "notif")
+            {
+                isInverted = false;
+            }
+            else
+            {
+                throw new Exception("Invalid if statement - didn't have if or notif text value");
+            }
         }
     }
 

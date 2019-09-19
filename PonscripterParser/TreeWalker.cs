@@ -386,6 +386,13 @@ namespace PonscripterParser
                     string labelName = labelNode.lexeme.text.TrimStart(new char[] { '*' });
                     scriptBuilder.AppendLine($"label {labelName}(*args):", no_indent:true);
                     return true;
+
+                case IfStatementNode ifNode:
+                    string invertIfString = ifNode.isInverted ? "!" : "";
+                    string ifCondition = TranslateExpression(ifNode.condition);
+                    scriptBuilder.AppendLine($"if {invertIfString}({ifCondition}):");
+                    scriptBuilder.ModifyIndentTemporarily(1);
+                    return true;
             }
 
             return false;
