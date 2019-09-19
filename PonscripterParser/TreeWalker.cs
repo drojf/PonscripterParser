@@ -418,7 +418,7 @@ namespace PonscripterParser
                     return GenerateNumAlias(TranslateExpression(numericReference.inner));
 
                 case BinaryOperatorNode bNode:
-                    return $"({bNode.left} {TranslateOperatorForRenpy(bNode.op.text)} {bNode.right})";
+                    return $"({TranslateExpression(bNode.left)} {TranslateOperatorForRenpy(bNode.op.text)} {TranslateExpression(bNode.right)})";
 
                 case UnaryNode uNode:
                     return $"{uNode.lexeme.text}{TranslateExpression(uNode.inner)}";
