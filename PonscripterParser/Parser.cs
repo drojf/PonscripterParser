@@ -116,11 +116,12 @@ namespace PonscripterParser
         }
     }
 
-    class Comment : Node
+    class CommentNode : Node
     {
-        public Comment(Lexeme lexeme) : base(lexeme)
+        public string comment;
+        public CommentNode(Lexeme lexeme) : base(lexeme)
         {
-
+            comment = lexeme.text;
         }
     }
 
@@ -224,9 +225,9 @@ namespace PonscripterParser
         }
     }
 
-    class Colon : Node
+    class ColonNode : Node
     {
-        public Colon(Lexeme lexeme) : base(lexeme)
+        public ColonNode(Lexeme lexeme) : base(lexeme)
         {
         }
     }
@@ -310,7 +311,7 @@ namespace PonscripterParser
             switch (Peek().type)
             {
                 case LexemeType.COMMENT:
-                    return new Comment(Pop());
+                    return new CommentNode(Pop());
 
                 case LexemeType.LABEL:
                     //handle label - note that label "text" includes the "*" for now.
@@ -332,7 +333,7 @@ namespace PonscripterParser
                     return new JumpfTarget(Pop());
 
                 case LexemeType.COLON:
-                    return new Colon(Pop());
+                    return new ColonNode(Pop());
 
                 case LexemeType.DIALOGUE:
                     return new DialogueNode(Pop());

@@ -308,6 +308,11 @@ namespace PonscripterParser
             temporaryIndent = 0;
         }
 
+        public void AppendComment(string comment)
+        {
+            AppendLine($"# " + comment);
+        }
+
         //still unsure how this should work....
         public void AppendLine(string line, bool no_indent = false)
         {
@@ -335,8 +340,6 @@ namespace PonscripterParser
         public IgnoreCaseDictionary<string> stringAliasDictionary;
         public RenpyScriptBuilder scriptBuilder;
 
-
-
         public TreeWalker(RenpyScriptBuilder scriptBuilder)
         {
             this.functionLookup = new FunctionHandlerLookup();
@@ -361,7 +364,9 @@ namespace PonscripterParser
             {
                 if(!HandleNode(n))
                 {
-                    Console.WriteLine($"Warning: Node {n}:{n.lexeme.text} is not handled");
+                    string warningMessage = $"Warning: Node {n}:{n.lexeme.text} is not handled";
+                    Console.WriteLine(warningMessage);
+                    scriptBuilder.AppendComment(warningMessage);
                 }
             }
 
@@ -392,6 +397,14 @@ namespace PonscripterParser
                     string ifCondition = TranslateExpression(ifNode.condition);
                     scriptBuilder.AppendLine($"if {invertIfString}({ifCondition}):");
                     scriptBuilder.ModifyIndentTemporarily(1);
+                    return true;
+
+                case ColonNode colonNode:
+                    //for now, just ignore colons
+                    return true;
+
+                case CommentNode commentNode:
+                    scriptBuilder.AppendComment(commentNode.comment);
                     return true;
             }
 

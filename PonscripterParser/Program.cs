@@ -43,7 +43,7 @@ namespace PonscripterParser
         static void ProcessLine(string line, SubroutineDatabase subroutineDatabase, RenpyScriptBuilder scriptBuilder, TreeWalker walker, bool isProgramBlock)
         {
             Console.WriteLine(line);
-            scriptBuilder.AppendLine($"# {line}");
+            scriptBuilder.AppendComment(line);
 
             LexerTest test = new LexerTest(line, subroutineDatabase);
             test.LexSection(isProgramBlock);
