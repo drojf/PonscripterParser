@@ -235,6 +235,32 @@ namespace PonscripterParser
         }
     }
 
+    class JumpfHandler : FunctionHandler
+    {
+        //TODO: refactor handling of jumpf/~ - some logic defined here, and some logic is defined in top level handler
+        //TODO: Renpy supports local label names (prefix with '.'), however this
+        // may break some ponscripter scripts which (erroneously?) jumpf through subroutines
+        // For now, leave as global labels.
+        public override string FunctionName() => "jumpf";
+
+        public override void HandleFunctionNode(TreeWalker walker, FunctionNode function)
+        {
+            walker.sawJumpfCommand = true;
+            walker.scriptBuilder.AppendLine($"jump {GetJumpfLabelNameFromID(walker.jumpfTargetCount)}");
+        }
+
+        static public string GetJumpfLabelNameFromID(int jumpfID)
+        {
+            return $"jumpf_target_{jumpfID}";
+        }
+
+        static public string GetUnreachableJumpfLabelNameFromID(int jumpfID)
+        {
+            return $"unreachable_jumpf_target_{jumpfID}";
+        }
+    }
+
+
     class GetParamHandler : FunctionHandler
     {
         public override string FunctionName() => "getparam";
@@ -340,12 +366,20 @@ namespace PonscripterParser
         public IgnoreCaseDictionary<string> stringAliasDictionary;
         public RenpyScriptBuilder scriptBuilder;
 
+        //TODO: encapsulate this in a class, this is too confusing.
+        public int jumpfTargetCount;
+        public bool sawJumpfCommand;
+
         public TreeWalker(RenpyScriptBuilder scriptBuilder)
         {
             this.functionLookup = new FunctionHandlerLookup();
             this.numAliasDictionary = new IgnoreCaseDictionary<int>();
             this.stringAliasDictionary = new IgnoreCaseDictionary<string>();
             this.scriptBuilder = scriptBuilder;
+
+            // Variables used for jumpf command
+            this.sawJumpfCommand = false;
+            this.jumpfTargetCount = 0;
 
             //Register function handlers
             this.functionLookup.RegisterSystemFunction(new NumAliasHandler());
@@ -356,6 +390,7 @@ namespace PonscripterParser
             this.functionLookup.RegisterSystemFunction(new DecHandler());
             this.functionLookup.RegisterSystemFunction(new DefSubHandler());
             this.functionLookup.RegisterSystemFunction(new GetParamHandler());
+            this.functionLookup.RegisterSystemFunction(new JumpfHandler());
         }
 
         public void WalkOneLine(List<Node> nodes)
@@ -405,6 +440,15 @@ namespace PonscripterParser
 
                 case CommentNode commentNode:
                     scriptBuilder.AppendComment(commentNode.comment);
+                    return true;
+
+                case JumpfTargetNode jumpfTarget:
+                    string label_prefix = sawJumpfCommand ?
+                        JumpfHandler.GetJumpfLabelNameFromID(jumpfTargetCount) : 
+                        JumpfHandler.GetUnreachableJumpfLabelNameFromID(jumpfTargetCount);
+                    sawJumpfCommand = false;
+                    scriptBuilder.AppendLine($"label {label_prefix}:", no_indent: true);
+                    jumpfTargetCount += 1;
                     return true;
             }
 

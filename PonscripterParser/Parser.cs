@@ -218,9 +218,9 @@ namespace PonscripterParser
         }
     }
 
-    class JumpfTarget : Node
+    class JumpfTargetNode : Node
     {
-        public JumpfTarget(Lexeme lexeme) : base(lexeme)
+        public JumpfTargetNode(Lexeme lexeme) : base(lexeme)
         {
         }
     }
@@ -330,7 +330,7 @@ namespace PonscripterParser
                     return new StringReferenceNode(Pop(), HandleNumericValue());
 
                 case LexemeType.JUMPF_TARGET:
-                    return new JumpfTarget(Pop());
+                    return new JumpfTargetNode(Pop());
 
                 case LexemeType.COLON:
                     return new ColonNode(Pop());
