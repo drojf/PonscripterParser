@@ -146,7 +146,7 @@ namespace PonscripterParser
             //add closing bracket
             tempBuilder.Append(")");
 
-            walker.scriptBuilder.AppendLine(tempBuilder.ToString());
+            walker.scriptBuilder.EmitPython(tempBuilder.ToString());
         }
     }
 
@@ -159,7 +159,7 @@ namespace PonscripterParser
             List<Node> arguments = function.GetArguments(2);
             string lvalue = walker.TranslateExpression(arguments[0]);
             string assigned_value = walker.TranslateExpression(arguments[1]);
-            walker.scriptBuilder.AppendLine($"{lvalue} {Op()} {assigned_value}");
+            walker.scriptBuilder.EmitPython($"{lvalue} {Op()} {assigned_value}");
         }
     }
     class IncHandler : FunctionHandler
@@ -170,7 +170,7 @@ namespace PonscripterParser
         {
             List<Node> arguments = function.GetArguments(1);
             string lvalue = walker.TranslateExpression(arguments[0]);
-            walker.scriptBuilder.AppendLine($"{lvalue} += 1");
+            walker.scriptBuilder.EmitPython($"{lvalue} += 1");
         }
     }
 
@@ -182,7 +182,7 @@ namespace PonscripterParser
         {
             List<Node> arguments = function.GetArguments(1);
             string lvalue = walker.TranslateExpression(arguments[0]);
-            walker.scriptBuilder.AppendLine($"{lvalue} -= 1");
+            walker.scriptBuilder.EmitPython($"{lvalue} -= 1");
         }
     }
 
@@ -212,7 +212,7 @@ namespace PonscripterParser
             string aliasValue = walker.TranslateExpression(arguments[1]);
 
             Log.Information($"Received numalias {aliasName} = {aliasValue}");
-            walker.scriptBuilder.AppendLine($"{FunctionName()}_{aliasName} = {aliasValue}");
+            walker.scriptBuilder.EmitPython($"{FunctionName()}_{aliasName} = {aliasValue}");
         }
     }
 
@@ -248,7 +248,7 @@ namespace PonscripterParser
         public override void HandleFunctionNode(TreeWalker walker, FunctionNode function)
         {
             walker.sawJumpfCommand = true;
-            walker.scriptBuilder.AppendLine($"renpy.jump({GetJumpfLabelNameFromID(walker.jumpfTargetCount).Quote()})");
+            walker.scriptBuilder.EmitPython($"renpy.jump({GetJumpfLabelNameFromID(walker.jumpfTargetCount).Quote()})");
         }
 
         static public string GetJumpfLabelNameFromID(int jumpfID)
@@ -272,7 +272,7 @@ namespace PonscripterParser
             for(int i = 0; i < function.GetArguments().Count; i++)
             {
                 string s = walker.TranslateExpression(function.GetArguments()[i]);
-                walker.scriptBuilder.AppendLine($"{s} = args[{i}]");
+                walker.scriptBuilder.EmitPython($"{s} = args[{i}]");
             }           
         }
     }
@@ -286,26 +286,43 @@ namespace PonscripterParser
             List<Node> arguments = function.GetArguments(1);
             LabelNode labelNode = VerifyType<LabelNode>(arguments[0]);
 
-            walker.scriptBuilder.AppendLine($"renpy.jump({TreeWalker.MangleLabelName(labelNode.labelName).Quote()})");
+            walker.scriptBuilder.EmitPython($"renpy.jump({TreeWalker.MangleLabelName(labelNode.labelName).Quote()})");
         }
     }
 
     class RenpyScriptBuilder
     {
+        //Labels: 0 indent
+        //Text/Dialogue: 1 indent
+        //Python start: 1 indent
+        //Python code: 2 or more indent (baseIndent)
+        // - if statements increment indent for python statements on the same line in ponscripter (temporaryIndent)
+        // - for statements increment indent until reaching the next 'next' statement in ponscripter (permanentIndent)
+
         StringBuilder init;
         StringBuilder body;
         StringBuilder current; //set to either init or body
-        string tabString = "    ";
-        int temporaryIndent;
-        int permanentIndent;
+
+        const string tabString = "    ";
+
+        // Indent variables
+        const int baseIndent = 2;      //the base indent for all python code
+        int temporaryIndent; //used for if statements (I think this only ever reaches 1 since ponscripter doesn't have proper nested if statements)
+        int permanentIndent; //changes only for for loops. Preserved between ponscripter lines
+
+        int pythonLineCount; //used to emit 'pass' statements if 'python:' block has no statements
+
+        bool lastStatementWasPython;
 
         public RenpyScriptBuilder()
         {
             init = new StringBuilder(1_000_000);
             body = new StringBuilder(10_000_000);
             current = init;
-            permanentIndent = 2;
+            permanentIndent = 0;
             temporaryIndent = 0;
+            lastStatementWasPython = false;
+            pythonLineCount = 0;
         }
 
         public void SaveFile(string outputPath)
@@ -329,9 +346,9 @@ namespace PonscripterParser
         public void ModifyIndentPermanently(int relativeChange)
         {
             permanentIndent += relativeChange;
-            if (permanentIndent < 2)
+            if (permanentIndent < 0)
             {
-                throw new Exception("Permanent Indent became less than 1 - missing for loop terminator?");
+                throw new Exception("Permanent Indent became less than 0 - duplicate 'next' statements?");
             }
         }
 
@@ -351,22 +368,45 @@ namespace PonscripterParser
 
         public void AppendComment(string comment)
         {
-            AppendLine($"# " + comment);
+            AppendLine("# " + comment, baseIndent + permanentIndent + temporaryIndent);
         }
 
-        //still unsure how this should work....
-        public void AppendLine(string line)
+        public void EmitPython(string line)
         {
-            AppendLine(line, permanentIndent + temporaryIndent);
+            pythonLineCount++;
+            PreEmitHook(nextIsPython: true);
+            AppendLine(line, baseIndent + permanentIndent + temporaryIndent);
         }
 
-        public void AppendLine(string line, int indent)
+        //Labels are always emitted with 0 indent
+        public void EmitLabel(string line)
         {
-            //Label: 0 indent
-            //Text/Dialogue: 1 indent
-            //Python start: 1 indent
-            //Python code: 2 indent
-            //If/for statements body: 3 indent?
+            pythonLineCount = 0;
+            PreEmitHook(nextIsPython: false);
+            AppendLine(line, 0);
+        }
+
+        private void PreEmitHook(bool nextIsPython)
+        {
+            if(nextIsPython && !lastStatementWasPython)
+            {
+                //emit python block when transitioning from non-python to python
+                AppendLine("python:", 1);
+            }
+            else if(!nextIsPython && lastStatementWasPython && pythonLineCount == 0)
+            {
+                //emit pass statement if:
+                // - transitioning from python to non-python
+                // - no python lines have been emitted.
+                // This is required as all python: blocks must contain at least one statement in them
+                AppendLine("pass", 2);
+            }
+
+            lastStatementWasPython = nextIsPython;
+        }
+
+        private void AppendLine(string line, int indent)
+        {
             for (int i = 0; i < indent; i++)
             {
                 current.Append(tabString);
@@ -442,13 +482,13 @@ namespace PonscripterParser
                 case LabelNode labelNode:
                     //Labels should be emitted with zero indent - normal calls emitted with indent 1 (which are in the start: section)
                     string labelName = labelNode.lexeme.text.TrimStart(new char[] { '*' });
-                    scriptBuilder.AppendLine($"label {MangleLabelName(labelName)}(*args):", indent: 0);
+                    scriptBuilder.EmitLabel($"label {MangleLabelName(labelName)}(*args):");
                     return true;
 
                 case IfStatementNode ifNode:
                     string invertIfString = ifNode.isInverted ? "!" : "";
                     string ifCondition = TranslateExpression(ifNode.condition);
-                    scriptBuilder.AppendLine($"if {invertIfString}({ifCondition}):");
+                    scriptBuilder.EmitPython($"if {invertIfString}({ifCondition}):");
                     scriptBuilder.ModifyIndentTemporarily(1);
                     return true;
 
@@ -465,7 +505,7 @@ namespace PonscripterParser
                         JumpfHandler.GetJumpfLabelNameFromID(jumpfTargetCount) : 
                         JumpfHandler.GetUnreachableJumpfLabelNameFromID(jumpfTargetCount);
                     sawJumpfCommand = false;
-                    scriptBuilder.AppendLine($"label {label_prefix}:", indent: 0);
+                    scriptBuilder.EmitLabel($"label {label_prefix}:");
                     jumpfTargetCount += 1;
                     return true;
 
@@ -475,7 +515,7 @@ namespace PonscripterParser
                         throw new NotImplementedException();
                     }
 
-                    scriptBuilder.AppendLine("renpy.return_statement()");
+                    scriptBuilder.EmitPython("renpy.return_statement()");
 
                     return true;
             }
