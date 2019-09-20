@@ -275,6 +275,19 @@ namespace PonscripterParser
         }
     }
 
+    class GotoHandler : FunctionHandler
+    {
+        public override string FunctionName() => "goto";
+
+        public override void HandleFunctionNode(TreeWalker walker, FunctionNode function)
+        {
+            List<Node> arguments = function.GetArguments(1);
+            LabelNode labelNode = VerifyType<LabelNode>(arguments[0]);
+
+            walker.scriptBuilder.AppendLine($"jump {TreeWalker.MangleLabelName(labelNode.labelName)}");
+        }
+    }
+
     class RenpyScriptBuilder
     {
         StringBuilder init;
@@ -391,6 +404,7 @@ namespace PonscripterParser
             this.functionLookup.RegisterSystemFunction(new DefSubHandler());
             this.functionLookup.RegisterSystemFunction(new GetParamHandler());
             this.functionLookup.RegisterSystemFunction(new JumpfHandler());
+            this.functionLookup.RegisterSystemFunction(new GotoHandler());
         }
 
         public void WalkOneLine(List<Node> nodes)
@@ -424,7 +438,7 @@ namespace PonscripterParser
                 case LabelNode labelNode:
                     //Labels should be emitted with zero indent - normal calls emitted with indent 1 (which are in the start: section)
                     string labelName = labelNode.lexeme.text.TrimStart(new char[] { '*' });
-                    scriptBuilder.AppendLine($"label {labelName}(*args):", no_indent:true);
+                    scriptBuilder.AppendLine($"label {MangleLabelName(labelName)}(*args):", no_indent:true);
                     return true;
 
                 case IfStatementNode ifNode:
@@ -565,6 +579,11 @@ namespace PonscripterParser
             }
 
             return op;
+        }
+
+        public static string MangleLabelName(string labelName)
+        {
+            return $"ponscripter_{labelName}";
         }
     }
 }
