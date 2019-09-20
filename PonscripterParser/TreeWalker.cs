@@ -386,9 +386,9 @@ namespace PonscripterParser
         //Labels are always emitted with 0 indent
         public void EmitLabel(string line)
         {
-            pythonLineCount = 0;
             PreEmitHook(nextIsPython: false);
             AppendLine(line, 0);
+            pythonLineCount = 0;
         }
 
         private void PreEmitHook(bool nextIsPython)
