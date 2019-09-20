@@ -150,7 +150,7 @@ namespace PonscripterParser
             scriptBuilder.SetBodyRegion();
 
 
-            scriptBuilder.SaveFile("test_output.txt");
+            scriptBuilder.SaveFile("prelude.rpy", "test_output.rpy");
             /*foreach (string line in cbs.program)
             {
                 ProcessLine(line, subroutineDatabase, isProgramBlock: true);

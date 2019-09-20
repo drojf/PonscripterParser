@@ -325,10 +325,15 @@ namespace PonscripterParser
             pythonLineCount = 0;
         }
 
-        public void SaveFile(string outputPath)
+        public void SaveFile(string preludePath, string outputPath)
         {
             using (StreamWriter writer = File.CreateText(outputPath))
             {
+                //write the prelude
+                using(StreamReader reader = File.OpenText(preludePath))
+                {
+                    writer.Write(reader.ReadToEnd());
+                }
                 writer.Write(init.ToString());
                 writer.Write(body.ToString());
             }
