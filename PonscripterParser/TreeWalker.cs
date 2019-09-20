@@ -304,7 +304,7 @@ namespace PonscripterParser
             init = new StringBuilder(1_000_000);
             body = new StringBuilder(10_000_000);
             current = init;
-            permanentIndent = 1;
+            permanentIndent = 2;
             temporaryIndent = 0;
         }
 
@@ -329,7 +329,7 @@ namespace PonscripterParser
         public void ModifyIndentPermanently(int relativeChange)
         {
             permanentIndent += relativeChange;
-            if (permanentIndent < 1)
+            if (permanentIndent < 2)
             {
                 throw new Exception("Permanent Indent became less than 1 - missing for loop terminator?");
             }
@@ -355,19 +355,21 @@ namespace PonscripterParser
         }
 
         //still unsure how this should work....
-        public void AppendLine(string line, bool no_indent = false)
+        public void AppendLine(string line)
+        {
+            AppendLine(line, permanentIndent + temporaryIndent);
+        }
+
+        public void AppendLine(string line, int indent)
         {
             //Label: 0 indent
             //Text/Dialogue: 1 indent
             //Python start: 1 indent
             //Python code: 2 indent
-            //If/for statements etc: 3 indent?
-            if(!no_indent)
+            //If/for statements body: 3 indent?
+            for (int i = 0; i < indent; i++)
             {
-                for(int i = 0; i < (permanentIndent + temporaryIndent); i++)
-                {
-                    current.Append(tabString);
-                }
+                current.Append(tabString);
             }
 
             current.AppendLine(line);
@@ -440,7 +442,7 @@ namespace PonscripterParser
                 case LabelNode labelNode:
                     //Labels should be emitted with zero indent - normal calls emitted with indent 1 (which are in the start: section)
                     string labelName = labelNode.lexeme.text.TrimStart(new char[] { '*' });
-                    scriptBuilder.AppendLine($"label {MangleLabelName(labelName)}(*args):", no_indent:true);
+                    scriptBuilder.AppendLine($"label {MangleLabelName(labelName)}(*args):", indent: 0);
                     return true;
 
                 case IfStatementNode ifNode:
@@ -463,7 +465,7 @@ namespace PonscripterParser
                         JumpfHandler.GetJumpfLabelNameFromID(jumpfTargetCount) : 
                         JumpfHandler.GetUnreachableJumpfLabelNameFromID(jumpfTargetCount);
                     sawJumpfCommand = false;
-                    scriptBuilder.AppendLine($"label {label_prefix}:", no_indent: true);
+                    scriptBuilder.AppendLine($"label {label_prefix}:", indent: 0);
                     jumpfTargetCount += 1;
                     return true;
 
