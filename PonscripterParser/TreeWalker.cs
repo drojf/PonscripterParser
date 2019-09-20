@@ -7,6 +7,14 @@ using System.Text;
 
 namespace PonscripterParser
 {
+    public static class MyExtensions
+    {
+        public static string Quote(this string str)
+        {
+            return $"\"{str}\"";
+        }
+    }
+
     abstract class FunctionHandler
     {
         public abstract string FunctionName();
@@ -125,24 +133,18 @@ namespace PonscripterParser
             List<Node> arguments = function.GetArguments();
             int argCount = arguments.Count;
 
-            tempBuilder.Append($"call {function.lexeme.text}");
+            //add first argument, the 'label' to call ('function' name)
+            tempBuilder.Append($"renpy.call({function.lexeme.text.Quote()}");
 
-            if(argCount > 0)
+            //append the function arguments, if any
+            for (int i = 0; i < argCount; i++)
             {
-                tempBuilder.Append("(");
-
-                //append the first argument
-                tempBuilder.Append(walker.TranslateExpression(arguments[0]));
-
-                //append subsequent arguments
-                for (int i = 1; i < argCount; i++)
-                {
-                    tempBuilder.Append(", ");
-                    tempBuilder.Append(walker.TranslateExpression(arguments[i]));
-                }
-
-                tempBuilder.Append(")");
+                tempBuilder.Append(", ");
+                tempBuilder.Append(walker.TranslateExpression(arguments[i]));
             }
+
+            //add closing bracket
+            tempBuilder.Append(")");
 
             walker.scriptBuilder.AppendLine(tempBuilder.ToString());
         }
@@ -246,7 +248,7 @@ namespace PonscripterParser
         public override void HandleFunctionNode(TreeWalker walker, FunctionNode function)
         {
             walker.sawJumpfCommand = true;
-            walker.scriptBuilder.AppendLine($"jump {GetJumpfLabelNameFromID(walker.jumpfTargetCount)}");
+            walker.scriptBuilder.AppendLine($"renpy.jump({GetJumpfLabelNameFromID(walker.jumpfTargetCount).Quote()})");
         }
 
         static public string GetJumpfLabelNameFromID(int jumpfID)
@@ -284,7 +286,7 @@ namespace PonscripterParser
             List<Node> arguments = function.GetArguments(1);
             LabelNode labelNode = VerifyType<LabelNode>(arguments[0]);
 
-            walker.scriptBuilder.AppendLine($"jump {TreeWalker.MangleLabelName(labelNode.labelName)}");
+            walker.scriptBuilder.AppendLine($"renpy.jump({TreeWalker.MangleLabelName(labelNode.labelName).Quote()})");
         }
     }
 
@@ -464,6 +466,16 @@ namespace PonscripterParser
                     scriptBuilder.AppendLine($"label {label_prefix}:", no_indent: true);
                     jumpfTargetCount += 1;
                     return true;
+
+                case ReturnNode returnNode:
+                    if (returnNode.returnDestination != null)
+                    {
+                        throw new NotImplementedException();
+                    }
+
+                    scriptBuilder.AppendLine("renpy.return_statement()");
+
+                    return true;
             }
 
             return false;
@@ -532,13 +544,6 @@ namespace PonscripterParser
                     //If a system function takes a label as argument, it should be handled separately, not here
                     throw new NotImplementedException();
 
-                case ReturnNode returnNode:
-                    if(returnNode.returnDestination != null)
-                    {
-                        throw new NotImplementedException();
-                    }
-                    return "return";
-
                 default:
                     throw new Exception($"Resolve reference couldn't handle node {node}");
             }
@@ -581,9 +586,10 @@ namespace PonscripterParser
             return op;
         }
 
+        //For now, don't mangle label names at all
         public static string MangleLabelName(string labelName)
         {
-            return $"ponscripter_{labelName}";
+            return $"{labelName}";
         }
     }
 }
