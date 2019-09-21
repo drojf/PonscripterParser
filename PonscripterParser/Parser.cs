@@ -134,11 +134,11 @@ namespace PonscripterParser
             this.condition = condition;
             if(lexeme.text == "if")
             {
-                isInverted = true;
+                isInverted = false;
             }
             else if(lexeme.text == "notif")
             {
-                isInverted = false;
+                isInverted = true;
             }
             else
             {
