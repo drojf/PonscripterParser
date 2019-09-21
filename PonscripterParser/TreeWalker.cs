@@ -134,7 +134,7 @@ namespace PonscripterParser
             int argCount = arguments.Count;
 
             //add first argument, the 'label' to call ('function' name)
-            tempBuilder.Append($"renpy.call({function.lexeme.text.Quote()}");
+            tempBuilder.Append($"renpy.call({function.functionName.Quote()}");
 
             //append the function arguments, if any
             for (int i = 0; i < argCount; i++)
@@ -200,30 +200,24 @@ namespace PonscripterParser
         public override string Op() => "=";
     }
 
-    abstract class AliasHandler : FunctionHandler
+    class StringAliasHandler : FunctionHandler
     {
+        public override string FunctionName() => "stralias";
+
         public override void HandleFunctionNode(TreeWalker walker, FunctionNode function)
         {
-            List<Node> arguments = function.GetArguments(2);
-
-            //Force lowercase, as the game treats all keywords as case-insensitive
-            string aliasName = arguments[0].lexeme.text.ToLower();
-
-            string aliasValue = walker.TranslateExpression(arguments[1]);
-
-            Log.Information($"Received numalias {aliasName} = {aliasValue}");
-            walker.scriptBuilder.EmitPython($"{FunctionName()}_{aliasName} = {aliasValue}");
+            TreeWalker.HandleAliasNode(walker, function, isNumAlias: false);
         }
     }
 
-    class StringAliasHandler : AliasHandler
-    {
-        public override string FunctionName() => "stralias";
-    }
-
-    class NumAliasHandler : AliasHandler
+    class NumAliasHandler : FunctionHandler
     {
         public override string FunctionName() => "numalias";
+
+        public override void HandleFunctionNode(TreeWalker walker, FunctionNode function)
+        {
+            TreeWalker.HandleAliasNode(walker, function, isNumAlias:true);
+        }
     }
 
     class DefSubHandler : FunctionHandler
@@ -233,7 +227,19 @@ namespace PonscripterParser
         public override void HandleFunctionNode(TreeWalker walker, FunctionNode function)
         {
             List<Node> arguments = function.GetArguments(1);
-            walker.functionLookup.RegisterUserFunction(arguments[0].lexeme.text);
+            walker.functionLookup.RegisterUserFunction(VerifyType<AliasNode>(arguments[0]).aliasName);
+        }
+    }
+
+    class GoSubHandler : FunctionHandler
+    {
+        public override string FunctionName() => "gosub";
+
+        public override void HandleFunctionNode(TreeWalker walker, FunctionNode function)
+        {
+            List<Node> arguments = function.GetArguments(1);
+            LabelNode gosubTargetLabel = VerifyType<LabelNode>(arguments[0]);
+            walker.scriptBuilder.EmitPython($"renpy.call({gosubTargetLabel.labelName.Quote()})");
         }
     }
 
@@ -272,7 +278,7 @@ namespace PonscripterParser
             for(int i = 0; i < function.GetArguments().Count; i++)
             {
                 string s = walker.TranslateExpression(function.GetArguments()[i]);
-                walker.scriptBuilder.EmitPython($"{s} = args[{i}]");
+                walker.scriptBuilder.EmitPython($"{s} = pons_args[{i}]");
             }           
         }
     }
@@ -425,23 +431,26 @@ namespace PonscripterParser
     {
         public FunctionHandlerLookup functionLookup;
         public IgnoreCaseDictionary<int> numAliasDictionary;
-        public IgnoreCaseDictionary<string> stringAliasDictionary;
+        public IgnoreCaseDictionary<int> stringAliasDictionary;
         public RenpyScriptBuilder scriptBuilder;
 
         //TODO: encapsulate this in a class, this is too confusing.
         public int jumpfTargetCount;
         public bool sawJumpfCommand;
+        public bool gotIfStatement;
 
         public TreeWalker(RenpyScriptBuilder scriptBuilder)
         {
             this.functionLookup = new FunctionHandlerLookup();
             this.numAliasDictionary = new IgnoreCaseDictionary<int>();
-            this.stringAliasDictionary = new IgnoreCaseDictionary<string>();
+            this.stringAliasDictionary = new IgnoreCaseDictionary<int>();
             this.scriptBuilder = scriptBuilder;
 
             // Variables used for jumpf command
             this.sawJumpfCommand = false;
             this.jumpfTargetCount = 0;
+
+            this.gotIfStatement = false;
 
             //Register function handlers
             this.functionLookup.RegisterSystemFunction(new NumAliasHandler());
@@ -454,6 +463,7 @@ namespace PonscripterParser
             this.functionLookup.RegisterSystemFunction(new GetParamHandler());
             this.functionLookup.RegisterSystemFunction(new JumpfHandler());
             this.functionLookup.RegisterSystemFunction(new GotoHandler());
+            this.functionLookup.RegisterSystemFunction(new GoSubHandler());
         }
 
         public void WalkOneLine(List<Node> nodes)
@@ -462,10 +472,18 @@ namespace PonscripterParser
             {
                 if(!HandleNode(n))
                 {
-                    string warningMessage = $"Warning: Node {n}:{n.lexeme.text} is not handled";
+                    string warningMessage = $"Warning: Node {n.GetLexeme()} is not handled";
                     Console.WriteLine(warningMessage);
                     scriptBuilder.AppendComment(warningMessage);
                 }
+            }
+
+            //TODO: for now, all if statements have a "pass" at the end of them
+            if(gotIfStatement)
+            {
+                gotIfStatement = false;
+
+                scriptBuilder.EmitPython("pass");
             }
 
             //reset if statement marker upon reaching line end
@@ -478,23 +496,28 @@ namespace PonscripterParser
             switch(n)
             {
                 case DialogueNode dialogue:
-                    Console.WriteLine($"Display Text: {dialogue.lexeme.text}");
+                    Console.WriteLine($"Display Text: {dialogue.GetLexeme()}");
                     return true;
 
                 case FunctionNode function:
                     return HandleFunction(function);
 
                 case LabelNode labelNode:
-                    //Labels should be emitted with zero indent - normal calls emitted with indent 1 (which are in the start: section)
-                    string labelName = labelNode.lexeme.text.TrimStart(new char[] { '*' });
-                    scriptBuilder.EmitLabel($"label {MangleLabelName(labelName)}(*args):");
+                    //ignore 'start' of ponscripter script, since we want to control the 'start' label ourselves
+                    if(labelNode.labelName == "start")
+                    {
+                        return true;
+                    }
+
+                    scriptBuilder.EmitLabel($"label {MangleLabelName(labelNode.labelName)}(*pons_args):");
                     return true;
 
                 case IfStatementNode ifNode:
-                    string invertIfString = ifNode.isInverted ? "!" : "";
+                    string invertIfString = ifNode.isInverted ? "not " : "";
                     string ifCondition = TranslateExpression(ifNode.condition);
                     scriptBuilder.EmitPython($"if {invertIfString}({ifCondition}):");
                     scriptBuilder.ModifyIndentTemporarily(1);
+                    gotIfStatement = true;
                     return true;
 
                 case ColonNode colonNode:
@@ -530,7 +553,7 @@ namespace PonscripterParser
 
         private bool HandleFunction(FunctionNode function)
         {
-            if(this.functionLookup.TryGetFunction(function.lexeme.text, out bool _isUserFunction, out FunctionHandler handler))
+            if(this.functionLookup.TryGetFunction(function.functionName, out bool _isUserFunction, out FunctionHandler handler))
             {
                 handler.HandleFunctionNode(this, function);
                 return true;
@@ -558,10 +581,24 @@ namespace PonscripterParser
                     return $"({TranslateExpression(bNode.left)} {TranslateOperatorForRenpy(bNode.op.text)} {TranslateExpression(bNode.right)})";
 
                 case UnaryNode uNode:
-                    return $"{uNode.lexeme.text}{TranslateExpression(uNode.inner)}";
+                    return $"{uNode.op}{TranslateExpression(uNode.inner)}";
 
                 case AliasNode aNode:
-                    return aNode.lexeme.text;
+                    string aliasName = aNode.aliasName;
+                    return MangleAlias(aliasName);
+                    /*
+                    if (numAliasDictionary.Contains(aliasName))
+                    {
+                        return MangleNumalias(aliasName);
+                    }
+                    else if(numAliasDictionary.Contains(aliasName))
+                    {
+                        return MangleStralias(aliasName);
+                    }
+                    else
+                    {
+                        throw new Exception($"alias '{aliasName}' was used before it was defined");
+                    }*/
 
                 case ArrayReference arrayNode:
                     //TODO: each dim'd array should use a custom python object which handles if read/written value is out of range without crashing
@@ -575,7 +612,8 @@ namespace PonscripterParser
 
                 //TODO: could implement type checking for string/numeric types, but should do as part of a seprate process
                 case StringLiteral stringLiteral:
-                    string stringWithQuotes = stringLiteral.lexeme.text;
+                    //TODO: move this logic to the StringLiteral class
+                    string stringWithQuotes = stringLiteral.value;
                     if (stringWithQuotes[0] != '"' || stringWithQuotes[stringWithQuotes.Length - 1] != '"')
                     {
                         throw new Exception("Invalid string literal");
@@ -584,7 +622,7 @@ namespace PonscripterParser
                     return EscapeStringForPython(stringWithQuotes.Substring(1, stringWithQuotes.Length - 2));
 
                 case NumericLiteral numericLiteral:
-                    return numericLiteral.lexeme.text;
+                    return numericLiteral.valueAsString;
 
                 case LabelNode _:
                     //No user defined functions should take labels as arguments
@@ -638,6 +676,35 @@ namespace PonscripterParser
         public static string MangleLabelName(string labelName)
         {
             return $"{labelName}";
+        }
+
+        //public static string MangleNumalias(string aliasName) => $"numalias_{aliasName}";
+        //public static string MangleStralias(string aliasName) => $"stralias_{aliasName}";
+        public static string MangleAlias(string aliasName) => "alias_" + aliasName;
+            
+        public static void HandleAliasNode(TreeWalker walker, FunctionNode function, bool isNumAlias)
+        {
+            List<Node> arguments = function.GetArguments(2);
+
+            string aliasName = FunctionHandler.VerifyType<AliasNode>(arguments[0]).aliasName;
+
+            string aliasValue = walker.TranslateExpression(arguments[1]);
+
+            Log.Information($"Received numalias {aliasName} = {aliasValue}");
+
+            //string mangledAliasName = isNumAlias ? MangleNumalias(aliasName) : MangleStralias(aliasName);
+            string mangledAliasName = MangleAlias(aliasName);
+            walker.scriptBuilder.EmitPython($"{mangledAliasName} = {aliasValue}");
+
+            if(isNumAlias)
+            {
+                walker.numAliasDictionary.Set(aliasName, 0);
+            }
+            else
+            {
+                walker.stringAliasDictionary.Set(aliasName, 0);
+            }
+
         }
     }
 }

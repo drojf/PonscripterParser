@@ -8,10 +8,15 @@ namespace PonscripterParser
 {
     class Node
     {
-        public Lexeme lexeme;
+        private Lexeme lexeme;
         public Node(Lexeme lexeme)
         {
             this.lexeme = lexeme;
+        }
+
+        public Lexeme GetLexeme()
+        {
+            return this.lexeme;
         }
     }
 
@@ -20,7 +25,8 @@ namespace PonscripterParser
         public string labelName;
         public LabelNode(Lexeme lexeme) : base(lexeme)
         {
-            labelName = lexeme.text.TrimStart(new char[] { '*' });
+            //I think ponscripter is not case sensitive for labels - required for certain scripts where labels are not consistently cased
+            labelName = lexeme.text.TrimStart(new char[] { '*' }).ToLower();
         }
     }
 
@@ -43,8 +49,10 @@ namespace PonscripterParser
 
     class AliasNode : Node
     {
+        public string aliasName;
         public AliasNode(Lexeme lexeme) : base(lexeme)
         {
+            this.aliasName = lexeme.text.ToLower();
         }
     }
 
@@ -66,10 +74,12 @@ namespace PonscripterParser
 
     class FunctionNode : Node
     {
+        public string functionName;
         List<Node> arguments;
 
         public FunctionNode(Lexeme lexeme) : base(lexeme)
         {
+            functionName = lexeme.text.ToLower();
             arguments = new List<Node>();
         }
 
@@ -102,17 +112,21 @@ namespace PonscripterParser
 
     class StringLiteral : Node
     {
+        public string value;
         bool hatStringLiteral;
         public StringLiteral(Lexeme lexeme, bool hatStringLiteral) : base(lexeme)
         {
+            this.value = lexeme.text;
             this.hatStringLiteral = hatStringLiteral;
         }
     }
 
     class NumericLiteral : Node
     {
+        public string valueAsString;
         public NumericLiteral(Lexeme lexeme) : base(lexeme)
         {
+            this.valueAsString = lexeme.text;
         }
     }
 
@@ -211,9 +225,11 @@ namespace PonscripterParser
 
     class UnaryNode : Node
     {
+        public string op;
         public Node inner;
         public UnaryNode(Lexeme lexeme, Node inner) : base(lexeme)
         {
+            this.op = lexeme.text;
             this.inner = inner;
         }
     }
