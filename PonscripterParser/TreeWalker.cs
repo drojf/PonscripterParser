@@ -627,7 +627,8 @@ namespace PonscripterParser
                     return "==";
 
                 case "&":
-                    return "&&";
+                case "&&":
+                    return "and";
             }
 
             return op;
