@@ -165,10 +165,10 @@ namespace PonscripterParser
 
     class ForStatementNode : Node
     {
-        Node forVariable;
-        Node startExpression;
-        Node endExpression;
-        Node step; //step is optional for for loops
+        public Node forVariable;
+        public Node startExpression;
+        public Node endExpression;
+        public Node step; //step is optional for for loops
 
         public ForStatementNode(Lexeme lexeme) : base(lexeme)
         {

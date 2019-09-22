@@ -326,6 +326,25 @@ namespace PonscripterParser
             walker.scriptBuilder.EmitPython(tempBuilder.ToString());
         }
     }
+
+    class NextHandler : FunctionHandler
+    {
+        public override string FunctionName() => "next";
+
+        public override void HandleFunctionNode(TreeWalker walker, FunctionNode function)
+        {
+            if(walker.forNextStatementIncrementString.Count == 0)
+            {
+                walker.scriptBuilder.AppendWarning("'Next' statement without matching 'For' statement");
+            }
+
+            walker.scriptBuilder.EmitPython(walker.forNextStatementIncrementString.Pop());
+
+            //Reduce indent by 1 as while loop is finished
+            walker.scriptBuilder.ModifyIndentPermanently(-1);
+        }
+    }
+
     class RenpyScriptBuilder
     {
         //Labels: 0 indent
@@ -412,6 +431,13 @@ namespace PonscripterParser
             temporaryIndent = 0;
         }
 
+        public void AppendWarning(string warning)
+        {
+            string message = "WARNING: " + warning;
+            Console.WriteLine(message);
+            AppendComment(message);
+        }
+
         public void AppendComment(string comment)
         {
             AppendLine("# " + comment, GetBaseIndent() + permanentIndent + temporaryIndent);
@@ -431,10 +457,17 @@ namespace PonscripterParser
         }
 
         //Labels are always emitted with 0 indent
-        public void EmitLabel(string line)
+        public void EmitLabel(string line, bool isJumpfLabel)
         {
+            int indent = 0;
+
+            if (isJumpfLabel || permanentIndent != 0 || temporaryIndent != 0)
+            {
+                indent = GetBaseIndent() + permanentIndent + temporaryIndent;
+            }
+
             PreEmitHook(nextIsPython: false);
-            AppendLine(line, 0);
+            AppendLine(line, indent);
             pythonLineCount = 0;
         }
 
@@ -488,6 +521,9 @@ namespace PonscripterParser
         public bool sawJumpfCommand;
         public bool gotIfStatement;
 
+        //TODO: encapsulate this in a class, this is too confusing.
+        public Stack<string> forNextStatementIncrementString;
+
         public TreeWalker(RenpyScriptBuilder scriptBuilder)
         {
             this.functionLookup = new FunctionHandlerLookup();
@@ -501,6 +537,8 @@ namespace PonscripterParser
 
             this.gotIfStatement = false;
 
+            this.forNextStatementIncrementString = new Stack<string>();
+
             //Register function handlers
             this.functionLookup.RegisterSystemFunction(new NumAliasHandler());
             this.functionLookup.RegisterSystemFunction(new StringAliasHandler());
@@ -513,6 +551,8 @@ namespace PonscripterParser
             this.functionLookup.RegisterSystemFunction(new JumpfHandler());
             this.functionLookup.RegisterSystemFunction(new GotoHandler());
             this.functionLookup.RegisterSystemFunction(new GoSubHandler());
+            this.functionLookup.RegisterSystemFunction(new DimHandler());
+            this.functionLookup.RegisterSystemFunction(new NextHandler());
         }
 
         public void WalkOneLine(List<Node> nodes)
@@ -521,9 +561,8 @@ namespace PonscripterParser
             {
                 if(!HandleNode(n))
                 {
-                    string warningMessage = $"Warning: Node {n.GetLexeme()} is not handled";
-                    Console.WriteLine(warningMessage);
-                    scriptBuilder.AppendComment(warningMessage);
+                    string warningMessage = $"Node {n.GetLexeme()} is not handled";
+                    scriptBuilder.AppendWarning(warningMessage);
                 }
             }
 
@@ -558,7 +597,7 @@ namespace PonscripterParser
                         return true;
                     }
 
-                    scriptBuilder.EmitLabel($"label {MangleLabelName(labelNode.labelName)}(*pons_args):");
+                    scriptBuilder.EmitLabel($"label {MangleLabelName(labelNode.labelName)}(*pons_args):", isJumpfLabel: false);
                     return true;
 
                 case IfStatementNode ifNode:
@@ -567,6 +606,41 @@ namespace PonscripterParser
                     scriptBuilder.EmitStatement($"if {invertIfString}({ifCondition}):");
                     scriptBuilder.ModifyIndentTemporarily(1);
                     gotIfStatement = true;
+                    return true;
+
+                case ForStatementNode forNode:
+                    //Translate the for statement to a while statement
+                    //Note that Ponscripter for statements are inclusive of both the initial and final value
+                    
+                    string forVariable = TranslateExpression(forNode.forVariable);
+                    string initialValue = TranslateExpression(forNode.startExpression);
+                    string finalValue = TranslateExpression(forNode.endExpression);
+                    string step = forNode.step == null ? "1" : TranslateExpression(forNode.step);
+
+                    if(!int.TryParse(step, out int stepAsNumber))
+                    {
+                        throw new NotImplementedException("Non-numeric step not implemented (not sure if ponscripter ever supported it) - while comparison depends on positive/negative step");
+                    }
+
+                    //emit the initializer
+                    scriptBuilder.EmitPython($"{forVariable} = {initialValue}");
+
+                    //emit the while loop
+                    if(stepAsNumber >= 0)
+                    {
+                        scriptBuilder.EmitStatement($"while {forVariable} <= {finalValue}:");
+                    }
+                    else
+                    {
+                        scriptBuilder.EmitStatement($"while {forVariable} >= {finalValue}:");
+                    }
+
+                    //Increase indent by 1 for the 'while' loop
+                    scriptBuilder.ModifyIndentPermanently(1);
+
+                    //Postpone emitting of the variable update command until the "next" statement is found
+                    this.forNextStatementIncrementString.Push($"{forVariable} += {step}");
+
                     return true;
 
                 case ColonNode colonNode:
@@ -582,7 +656,7 @@ namespace PonscripterParser
                         JumpfHandler.GetJumpfLabelNameFromID(jumpfTargetCount) : 
                         JumpfHandler.GetUnreachableJumpfLabelNameFromID(jumpfTargetCount);
                     sawJumpfCommand = false;
-                    scriptBuilder.EmitLabel($"label {label_prefix}:");
+                    scriptBuilder.EmitLabel($"label {label_prefix}:", isJumpfLabel: true);
                     jumpfTargetCount += 1;
                     return true;
 
