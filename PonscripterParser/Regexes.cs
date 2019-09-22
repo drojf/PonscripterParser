@@ -60,7 +60,7 @@ namespace PonscripterParser
 
         public static Regex RegexFromStart(string s, RegexOptions options)
         {
-            return new Regex(@"\G" + s, options);
+            return new Regex($@"\G({s})", options);
         }
     }
 }
