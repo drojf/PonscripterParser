@@ -659,12 +659,12 @@ namespace PonscripterParser
 
         public string GenerateNumAlias(string lookupValue)
         {
-            return $"variable_array[{lookupValue}]";
+            return $"pons_var[{lookupValue}]";
         }
 
         public string GenerateStringAlias(string lookupValue)
         {
-            return $"string_array[{lookupValue}]";
+            return $"pons_str[{lookupValue}]";
         }
 
         public string MangleArrayName(string arrayName)
