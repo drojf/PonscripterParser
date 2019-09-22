@@ -135,7 +135,7 @@ namespace PonscripterParser
             CodeBlocks cbs = ReadSegments(lines);
 
             // Write to Init Region
-            scriptBuilder.SetInitRegion();
+            //scriptBuilder.SetBodyRegion();
             foreach (string line in cbs.header)
             {
                 ProcessLine(line, subroutineDatabase, scriptBuilder, walker, isProgramBlock: true);
@@ -147,14 +147,11 @@ namespace PonscripterParser
             }
 
             // Write to Body Region
-            scriptBuilder.SetBodyRegion();
+            //scriptBuilder.SetBodyRegion();
 
 
-            scriptBuilder.SaveFile("prelude.rpy", "test_output.rpy");
-            /*foreach (string line in cbs.program)
-            {
-                ProcessLine(line, subroutineDatabase, isProgramBlock: true);
-            }*/
+            string savePath = @"C:\drojf\large_projects\ponscripter_parser\renpy\ponscripty\game\script.rpy";
+            scriptBuilder.SaveFile("prelude.rpy", savePath);
         }
 
         static void Main(string[] args)
