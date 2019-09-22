@@ -426,11 +426,11 @@ namespace PonscripterParser
             {
                 case LexemeType.NUMERIC_REFERENCE:
                     //TODO: should probably make a numeric referencec value specific fucntion
-                    forStatement.SetStartExpression(HandleNumericValue());
+                    forStatement.SetForVariable(HandleNumericValue());
                     break;
 
                 case LexemeType.ARRAY_REFERENCE: //Not sure if ponscripter actually allows array variables to be iterated over
-                    forStatement.SetStartExpression(HandleArray());
+                    forStatement.SetForVariable(HandleArray());
                     break;
 
                 default:
