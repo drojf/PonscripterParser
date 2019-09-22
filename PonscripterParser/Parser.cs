@@ -56,14 +56,16 @@ namespace PonscripterParser
         }
     }
 
-    class ArrayReference : Node
+    class ArrayReferenceNode : Node
     {
         public List<Node> nodes;
-        public Lexeme arrayName;
-        public ArrayReference(Lexeme lexeme, Lexeme arrayName) : base(lexeme)
+        public string arrayName;
+        public Lexeme arrayNameLexeme;
+        public ArrayReferenceNode(Lexeme lexeme, Lexeme arrayName) : base(lexeme)
         {
             this.nodes = new List<Node>();
-            this.arrayName = arrayName;
+            this.arrayNameLexeme = arrayName;
+            this.arrayName = arrayName.text;
         }
 
         public void AddBracketedExpression(Node node)
@@ -695,7 +697,7 @@ namespace PonscripterParser
         public Node HandleArray()
         {
             //First two lexemes must be question mark, then array name
-            ArrayReference array = new ArrayReference(
+            ArrayReferenceNode array = new ArrayReferenceNode(
                 PopMessage(LexemeType.ARRAY_REFERENCE, "Missing Array ?"), 
                 PopMessage(LexemeType.WORD, "Missing Array Name")
             );

@@ -300,6 +300,32 @@ namespace PonscripterParser
         }
     }
 
+    class DimHandler : FunctionHandler
+    {
+        public override string FunctionName() => "dim";
+
+        public override void HandleFunctionNode(TreeWalker walker, FunctionNode function)
+        {
+            List<Node> arguments = function.GetArguments(1);
+            ArrayReferenceNode arrayReference = VerifyType<ArrayReferenceNode>(arguments[0]);
+            //walker.scriptBuilder.EmitPython($"{walker.TranslateArray(arrayReference) }");
+
+            StringBuilder tempBuilder = new StringBuilder();
+
+            tempBuilder.Append($"{TreeWalker.MangleArrayName(arrayReference.arrayName)} = Dim(");
+
+            tempBuilder.Append($"{walker.TranslateExpression(arrayReference.nodes[0])}");
+            
+            for(int i = 1; i < arrayReference.nodes.Count; i++)
+            {
+                tempBuilder.Append($", {walker.TranslateExpression(arrayReference.nodes[i])}");
+            }
+
+            tempBuilder.Append(")");
+
+            walker.scriptBuilder.EmitPython(tempBuilder.ToString());
+        }
+    }
     class RenpyScriptBuilder
     {
         //Labels: 0 indent
@@ -585,7 +611,7 @@ namespace PonscripterParser
             return false;
         }
 
-        public void DefineArray(ArrayReference node)
+        public void DefineArray(ArrayReferenceNode node)
         {
 
         }
@@ -623,15 +649,8 @@ namespace PonscripterParser
                         throw new Exception($"alias '{aliasName}' was used before it was defined");
                     }*/
 
-                case ArrayReference arrayNode:
-                    //TODO: each dim'd array should use a custom python object which handles if read/written value is out of range without crashing
-                    StringBuilder sb = new StringBuilder();
-                    sb.Append(MangleArrayName(arrayNode.arrayName.text));
-                    foreach(Node bracketedNode in arrayNode.nodes)
-                    {
-                        sb.Append($"[{TranslateExpression(bracketedNode)}]");
-                    }
-                    return sb.ToString();
+                case ArrayReferenceNode arrayNode:
+                    return TranslateArray(this, arrayNode);
 
                 //TODO: could implement type checking for string/numeric types, but should do as part of a seprate process
                 case StringLiteral stringLiteral:
@@ -667,9 +686,9 @@ namespace PonscripterParser
             return $"pons_str[{lookupValue}]";
         }
 
-        public string MangleArrayName(string arrayName)
+        public static string MangleArrayName(string arrayName)
         {
-            return "pons_array_" + arrayName;
+            return "pons_arr_" + arrayName;
         }
 
         private string EscapeStringForPython(string s)
@@ -729,5 +748,19 @@ namespace PonscripterParser
             }
 
         }
+
+        public string TranslateArray(TreeWalker walker, ArrayReferenceNode arrayReference)
+        {
+            StringBuilder tempBuilder = new StringBuilder();
+
+            tempBuilder.Append($"{MangleArrayName(arrayReference.arrayName)}");
+            foreach (Node bracketedExpression in arrayReference.nodes)
+            {
+                tempBuilder.Append($"[{walker.TranslateExpression(bracketedExpression)}]");
+            }
+
+            return tempBuilder.ToString();
+        }
+
     }
 }
