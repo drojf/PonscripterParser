@@ -583,8 +583,8 @@ namespace PonscripterParser
         {
             switch(n)
             {
-                case DialogueNode dialogue:
-                    Console.WriteLine($"Display Text: {dialogue.GetLexeme()}");
+                case DialogueNode dialogueNode:
+                    scriptBuilder.EmitStatement($"narrator \"{dialogueNode.GetLexeme().text.Replace('"', ' ')}\"");
                     return true;
 
                 case FunctionNode function:
