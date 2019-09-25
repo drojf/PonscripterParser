@@ -1,8 +1,6 @@
 ################## BEGIN PRELUDE #################
 
 init python:
-    config.log = "ponscripty.log"
-
     # Used for stralias and numalias
     class VariableArray:
         def __init__(self, length, default_value):
@@ -108,6 +106,179 @@ init python:
         def __setitem__(self, singularKey, value):
             self.set([singularKey], value)
 
+    class PonscripterButton:
+        def __init__(id, x, y):
+            self.text = "button"
+            self.image_path = None #use later for button image?
+            self.id = id;
+            self.x = x;
+            self.y = y;
+
+################################ SPRITE ##################################
+    def makeTransform(xpos, ypos, opacity):
+        t = Transform()
+        t.xpos = xpos
+        t.ypos = ypos
+        t.opacity = opacity
+        return t
+
+    class SpriteObject:
+        tag_counter = 0
+
+        def __init__(self, sprite_number, filename, x, y, opacity=None):
+            self.sprite_number = sprite_number
+            self.filename = filename
+            self.x = x
+            self.y = y
+            self.opacity = opacity
+            self.tag = str(SpriteObject.tag_counter)
+            SpriteObject.tag_counter += 1
+
+        def show(self):
+            renpy.show(self.filename, at_list=[makeTransform(self.x, self.y, self.opacity)], tag=self.tag)
+
+        def hide(self):
+            renpy.hide(self.tag)
+
+    class SpriteMap:
+        def __init__(self):
+            self.map = {}
+
+        def set(self, sprite_object):
+            self.map[sprite_object.sprite_number] = sprite_object
+
+        def get(self, sprite_number):
+            return self.map[sprite_number]
+
+        def pop(self, sprite_number):
+            sprite_object = self.map[sprite_object.sprite_number]
+            self.map[sprite_number] = None
+            return sprite_object
+
+        def values(self):
+            return self.map.values()
+
+    def pons_lsp(sprite_number, filename, x, y, opacity=None):
+        if opacity is None:
+            opacity = 100
+
+        # Create sprite object
+        sprite_object = SpriteObject(sprite_number, filename, x, y, opacity)
+
+        #save sprite in the sprite array
+        sprite_map.set(sprite_object)
+
+    def pons_print():
+        for sprite_object in sprite_map.values():
+            sprite_object.show()
+        renpy.with_statement(dissolve)
+
+    def pons_clear(sprite_number):
+        sprite_map.pop(sprite_number).hide()
+
+################################ SPRITE ##################################
+    class EffectMap:
+        def __init__(self):
+            self.map = {
+                1: None,
+                10: dissolve,
+            }
+
+        def set(self, effect_number, effect):
+            self.map[effect_number] = effect
+        
+        def get(self, effect_number):
+            if effect_number in self.map:
+                return self.map[effect_number]
+            else:
+                renpy.log("Warning: Transition {} not implemented".format(effect_number))
+                return None
+
+    def makeTransform(xpos, ypos, opacity):
+        t = Transform()
+        t.xpos = xpos
+        t.ypos = ypos
+        t.opacity = opacity
+        return t
+
+    class SpriteObject:
+        tag_counter = 0
+
+        def __init__(self, sprite_number, filename, x, y, opacity=None):
+            self.sprite_number = sprite_number
+            self.filename = filename
+            self.x = x
+            self.y = y
+            self.opacity = opacity
+            self.tag = str(SpriteObject.tag_counter)
+            SpriteObject.tag_counter += 1
+
+        def show(self):
+            renpy.show(self.filename, at_list=[makeTransform(self.x, self.y, self.opacity)], tag=self.tag)
+
+        def hide(self):
+            renpy.hide(self.tag)
+
+    class SpriteMap:
+        def __init__(self):
+            self.map = {}
+
+        def set(self, sprite_object):
+            self.map[sprite_object.sprite_number] = sprite_object
+
+        def get(self, sprite_number):
+            return self.map[sprite_number]
+
+        def pop(self, sprite_number):
+            sprite_object = self.map[sprite_object.sprite_number]
+            self.map[sprite_number] = None
+            return sprite_object
+
+        def values(self):
+            return self.map.values()
+
+    def pons_lsp(sprite_number, filename, x, y, opacity=None):
+        if opacity is None:
+            opacity = 100
+
+        # Create sprite object
+        sprite_object = SpriteObject(sprite_number, filename, x, y, opacity)
+
+        #save sprite in the sprite array
+        sprite_map.set(sprite_object)
+
+    def pons_print(effect_number):
+        for sprite_object in sprite_map.values():
+            sprite_object.show()
+        renpy.with_statement(effect_map.get(effect_number))
+
+    def pons_clear(sprite_number):
+        sprite_map.pop(sprite_number).hide()
+
+################################ SPRITE ##################################
+
+    # Holds the currently loaded sprtie/sprite numbers
+    sprite_map = SpriteMap()
+    # Holds the currently loaded effects (transitions)
+    effect_map = EffectMap()
+
+    # Renpy Config
+    config.log = "ponscripty.log"
+
+    # Global variable definitions
+    ponscripter_buttons = {} #hashmap of button_id : PonscripterButton
+
+
+
+
+screen MultiButton():
+    fixed:
+        for but in ponscripter_buttons:
+            textbutton str(but.text):
+                action Return(but.id)
+                xpos but.x
+                #left_padding i
+                xfill True
 
 # Declare characters used by this game.
 define narrator = Character(_("Narrator"), color="#c8ffc8")
