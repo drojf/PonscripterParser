@@ -1,6 +1,9 @@
 ################## BEGIN PRELUDE #################
 
 init python:
+    import os
+    import re
+
     # Used for stralias and numalias
     class VariableArray:
         def __init__(self, length, default_value):
@@ -158,7 +161,20 @@ init python:
         def values(self):
             return self.map.values()
 
-    def pons_lsp(sprite_number, filename, x, y, opacity=None):
+    # Expects the filename not to have any extension?
+    def pons_lsp(sprite_number, filename_with_tags, x, y, opacity=None):
+        splitFilename = filename.split(';')
+
+        #TODO: use tags
+        tags = None
+        filename = filename_with_tags
+
+        if filename[0] == ':':
+            semi_pos = filename.find(';')
+            if semi_pos != -1:
+                tags = filename_with_tags[1:semi_pos]
+                filename = filename_with_tags[semi_pos+1:]
+
         if opacity is None:
             opacity = 100
 
@@ -204,9 +220,9 @@ init python:
     class SpriteObject:
         tag_counter = 0
 
-        def __init__(self, sprite_number, filename, x, y, opacity=None):
+        def __init__(self, sprite_number, filename_with_ext, x, y, opacity=None):
             self.sprite_number = sprite_number
-            self.filename = filename
+            self.filename = os.path.splitext(filename_with_ext)[0]
             self.x = x
             self.y = y
             self.opacity = opacity
@@ -255,6 +271,14 @@ init python:
     def pons_clear(sprite_number):
         sprite_map.pop(sprite_number).hide()
 
+    #TODO: properly use sprite as button graphic instead of sprite number
+    def pons_spbtn(sprite_number, button_number):
+        ponscripter_buttons[button_number] = PonscripterButton(button_number, 0, 0)
+
+    def pons_btndef(filename):
+        ponscripter_buttons = {}
+        ponscripter_btndef_image = filename
+
 ################################ SPRITE ##################################
 
     # Holds the currently loaded sprtie/sprite numbers
@@ -268,15 +292,19 @@ init python:
     # Global variable definitions
     ponscripter_buttons = {} #hashmap of button_id : PonscripterButton
 
+    # global variable used for btndef command
+    ponscripter_btndef_image = ""
+
 
 
 
 screen MultiButton():
-    fixed:
+    vbox: #fixed: #Change to fixed when proper button x y implemented 
         for but in ponscripter_buttons:
             textbutton str(but.text):
                 action Return(but.id)
-                xpos but.x
+                #xpos but.x #UNCOMMENT WHEN PROPER BUTTON X Y IPMLEMENTED
+                #ypos but.y #UNCOMMENT WHEN PROPER BUTTON X Y IPMLEMENTED
                 #left_padding i
                 xfill True
 

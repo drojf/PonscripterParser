@@ -345,6 +345,146 @@ namespace PonscripterParser
         }
     }
 
+    class LspHandler : FunctionHandler
+    {
+        public override string FunctionName() => "lsp";
+
+        public override void HandleFunctionNode(TreeWalker walker, FunctionNode function)
+        {
+            List<Node> arguments = function.GetArguments(4,5);
+            string spriteNumber = walker.TranslateExpression(arguments[0]);
+            string filename_or_tag = walker.TranslateExpression(arguments[1]);
+            string top_left_x = walker.TranslateExpression(arguments[2]);
+            string top_left_y = walker.TranslateExpression(arguments[3]);
+
+            string opacity = "100";
+            if(arguments.Count >= 5)
+            {
+                opacity = walker.TranslateExpression(arguments[4]);
+            }
+
+            //ExtractTagsAndFilename(filename_or_tag, out string filename, out string tags);
+            //string filename_no_ext = Path.GetFileNameWithoutExtension(filename);
+
+            //save all the sprite information to the sprite number:sprite object hashmap
+            //load and display the image
+            walker.scriptBuilder.EmitPython($"pons_lsp({spriteNumber}, {filename_or_tag}, {top_left_x}, {top_left_y}, {opacity})");
+
+            /*walker.scriptBuilder.EmitPython($"sprite_number[{}] = {}");
+
+            walker.scriptBuilder.EmitStatement($"show {filename_no_ext}:");
+
+            //TODO: x and y pos need to match the positioning of Ponscripter - currently taken as top left of screen coord.
+            walker.scriptBuilder.EmitStatement($"xpos {top_left_x}");
+            walker.scriptBuilder.EmitStatement($"ypos {top_left_y}");
+            
+            if (arguments.Count == 5)
+            {
+                string opacity = walker.TranslateExpression(arguments[4]);
+                walker.scriptBuilder.EmitStatement($"alpha {opacity}");
+            }*/
+
+
+            //TODO: probably better to make a renpy function which handles all of this which mirrors the lsp of ponscripter.
+
+
+            //Use something like this to implement
+            //    $ renpy.show("eileen " + "vhappy", at_list=[makeTransform(200)], tag="tag1")
+            /*Where makeTransform is:
+             *     def makeTransform(xpos):
+                    t = Transform()
+                    t.xpos = xpos
+                    return t
+             * 
+             * 
+             * */
+
+
+        }
+
+        //TODO: need to do this in python as string value may not be known until runtime
+        /*private void ExtractTagsAndFilename(string filenameWithTags, out string outputFilename, out string tags)
+        {
+            //for now tags is always output as null
+            tags = null;
+
+            //TODO: implement proper tag extraction
+            string[] split_filename = filenameWithTags.Split(new char[] { ';' });
+            if(split_filename.Length == 1)
+            {
+                outputFilename = split_filename[0];
+            }
+            else if(split_filename.Length == 2)
+            {
+                outputFilename = split_filename[1];
+            }
+            else
+            {
+                throw new Exception($"Invalid filename {filenameWithTags}");
+            }
+        }*/
+    }
+
+    class SpbtnHandler : FunctionHandler
+    {
+        // Defines a button from a sprite which has been previously loaded with 'lsp' or similar
+        // The buttons are cleared when 'csp' or similar is used to clear the associated sprite.
+        public override string FunctionName() => "spbtn";
+
+        public override void HandleFunctionNode(TreeWalker walker, FunctionNode function)
+        {
+            List<Node> arguments = function.GetArguments(2);
+            string spriteNumber = walker.TranslateExpression(arguments[0]);
+            string buttonNumber = walker.TranslateExpression(arguments[1]);
+
+            walker.scriptBuilder.EmitPython($"pons_spbtn({spriteNumber}, {buttonNumber})");
+        }
+    }
+
+    class Btnwait2Handler : FunctionHandler
+    {
+        public override string FunctionName() => "btnwait2";
+
+        public override void HandleFunctionNode(TreeWalker walker, FunctionNode function)
+        {
+            List<Node> arguments = function.GetArguments(1);
+            string btnWaitResultOutputVariable = walker.TranslateExpression(arguments[0]);
+
+            //use "call" to show the buttons, then clear them after user presses on them
+            //TODO: not sure whether to use "call" or "show" here - maybe 'show' because ponscripter won't automatically clear the images off the screen.
+            walker.scriptBuilder.EmitStatement($"call screen MultiButton()");
+
+            //Renpy places the result (which button id was pressed) in the `_return` variable. 
+            //Copy from the renpy `_return` variable to the user defined output variable
+            walker.scriptBuilder.EmitPython($"{btnWaitResultOutputVariable} = _return");
+        }
+    }
+
+    class BtndefHandler : FunctionHandler
+    {
+        //Note about btndef
+        //Btndef registers which image will be used for future `btn` calls
+        //See this page for an example: http://binaryheaven.ivory.ne.jp/o_show/nscripter/tyuu/03.htm
+        //
+        //btndef "botan.jpg"
+        //btn 1,10,10,50,50,0,0
+        //btn 2,10,70,50,50,50,0
+        //btn 3,10,130,50,50,100,0
+        //
+        //I'm not sure if it's used in modern ponscripter scripts
+
+        //this isn't properly implemented - calling this just clears the previously bound buttons
+        public override string FunctionName() => "btndef";
+
+        public override void HandleFunctionNode(TreeWalker walker, FunctionNode function)
+        {
+            List<Node> arguments = function.GetArguments(1);
+            string btndefFilename = walker.TranslateExpression(arguments[0]);
+
+            walker.scriptBuilder.EmitPython($"pons_btndef({btndefFilename})");
+        }
+    }
+
     class RenpyScriptBuilder
     {
         //Labels: 0 indent
@@ -553,6 +693,10 @@ namespace PonscripterParser
             this.functionLookup.RegisterSystemFunction(new GoSubHandler());
             this.functionLookup.RegisterSystemFunction(new DimHandler());
             this.functionLookup.RegisterSystemFunction(new NextHandler());
+            this.functionLookup.RegisterSystemFunction(new LspHandler());
+            this.functionLookup.RegisterSystemFunction(new SpbtnHandler());
+            this.functionLookup.RegisterSystemFunction(new Btnwait2Handler());
+            this.functionLookup.RegisterSystemFunction(new BtndefHandler());
         }
 
         public void WalkOneLine(List<Node> nodes)

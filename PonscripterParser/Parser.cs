@@ -99,6 +99,23 @@ namespace PonscripterParser
 
             return GetArguments();
         }
+
+        /// <summary>
+        /// Specify an inclusive range of values of expected number of arguments
+        /// </summary>
+        /// <param name="lowestExpected"></param>
+        /// <param name="highestExpected"></param>
+        /// <returns></returns>
+        public List<Node> GetArguments(int lowestExpected, int highestExpected)
+        {
+            if (arguments.Count >= lowestExpected && arguments.Count <= highestExpected)
+            {
+                return GetArguments();
+            }
+
+            throw new PonscripterWrongNumArguments();
+        }
+
         public List<Node> GetArguments()
         {
             return this.arguments;
