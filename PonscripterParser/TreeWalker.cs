@@ -487,6 +487,13 @@ namespace PonscripterParser
 
     class RenpyScriptBuilder
     {
+        enum LineType
+        {
+            COMMENT,
+            PYTHON,
+            STATEMENT,
+        }
+
         //Labels: 0 indent
         //Text/Dialogue: 1 indent
         //Python start: 1 indent
@@ -580,34 +587,32 @@ namespace PonscripterParser
 
         public void AppendComment(string comment)
         {
-            AppendLine("# " + comment, GetBaseIndent() + permanentIndent + temporaryIndent);
+            AppendLine("# " + comment, lineType: LineType.COMMENT);
         }
 
         public void EmitStatement(string line)
         {
-            AppendLine(line, GetBaseIndent() + permanentIndent + temporaryIndent);
+            AppendLine(line, lineType: LineType.STATEMENT);
         }
 
         public void EmitPython(string line)
         {
             pythonLineCount++;
-            PreEmitHook(nextIsPython: true);
             string emittedLine = (ponscripterDefineSectionMode ? "" : "$ ") + line;
-            AppendLine(emittedLine, GetBaseIndent() + permanentIndent + temporaryIndent);
+            AppendLine(emittedLine, lineType: LineType.PYTHON);
         }
 
         //Labels are always emitted with 0 indent
         public void EmitLabel(string line, bool isJumpfLabel)
         {
-            int indent = 0;
+            int? indent_override = 0;
 
-            if (isJumpfLabel || permanentIndent != 0 || temporaryIndent != 0)
+            if(isJumpfLabel || permanentIndent != 0 || temporaryIndent != 0)
             {
-                indent = GetBaseIndent() + permanentIndent + temporaryIndent;
+                indent_override = null;
             }
 
-            PreEmitHook(nextIsPython: false);
-            AppendLine(line, indent);
+            AppendLine(line, lineType: LineType.STATEMENT, indent_override: indent_override);
             pythonLineCount = 0;
         }
 
@@ -633,8 +638,14 @@ namespace PonscripterParser
             }
         }
 
-        private void AppendLine(string line, int indent)
+        private void AppendLine(string line, LineType lineType, int? indent_override=null)
         {
+            int indent = GetBaseIndent() + permanentIndent + temporaryIndent;
+            if(indent_override.HasValue)
+            {
+                indent = indent_override.Value;
+            }            
+
             for (int i = 0; i < indent; i++)
             {
                 current.Append(tabString);
