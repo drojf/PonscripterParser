@@ -17,7 +17,7 @@ namespace PonscripterParser
 
     abstract class FunctionHandler
     {
-        public abstract string FunctionName();
+        public abstract string[] FunctionNames();
         public abstract void HandleFunctionNode(TreeWalker walker, FunctionNode function);
 
         public static T VerifyType<T>(Node n) {
@@ -112,20 +112,23 @@ namespace PonscripterParser
 
         private void RegisterFunctionWithCheck(IgnoreCaseDictionary<FunctionHandler> dict, FunctionHandler userFunctionHandler)
         {
-            if (dict.Contains(userFunctionHandler.FunctionName()))
+            foreach (string function_name in userFunctionHandler.FunctionNames())
             {
-                throw new Exception($"User function {userFunctionHandler.FunctionName()} was defined twice");
-            }
-            else
-            {
-                dict.Set(userFunctionHandler.FunctionName(), userFunctionHandler);
+                if (dict.Contains(function_name))
+                {
+                    throw new Exception($"User function {function_name} was defined twice");
+                }
+                else
+                {
+                    dict.Set(function_name, userFunctionHandler);
+                }
             }
         }
     }
 
     class UserFunctionHandler : FunctionHandler
     {
-        public override string FunctionName() { throw new NotSupportedException(); }
+        public override string[] FunctionNames() { throw new NotSupportedException(); }
 
         public override void HandleFunctionNode(TreeWalker walker, FunctionNode function)
         {
@@ -168,7 +171,7 @@ namespace PonscripterParser
     }
     class IncHandler : FunctionHandler
     {
-        public override string FunctionName() => "inc";
+        public override string[] FunctionNames() => new string[] { "inc"};
 
         public override void HandleFunctionNode(TreeWalker walker, FunctionNode function)
         {
@@ -180,7 +183,7 @@ namespace PonscripterParser
 
     class DecHandler : FunctionHandler
     {
-        public override string FunctionName() => "dec";
+        public override string[] FunctionNames() => new string[] { "dec" };
 
         public override void HandleFunctionNode(TreeWalker walker, FunctionNode function)
         {
@@ -192,21 +195,21 @@ namespace PonscripterParser
 
     class AddHandler : BinaryOpFunction
     {
-        public override string FunctionName() => "add";
+        public override string[] FunctionNames() => new string[] { "add" };
         
         public override string Op() => "+=";
     }
 
     class MovHandler : BinaryOpFunction
     {
-        public override string FunctionName() => "mov";
+        public override string[] FunctionNames() => new string[] { "mov" };
 
         public override string Op() => "=";
     }
 
     class StringAliasHandler : FunctionHandler
     {
-        public override string FunctionName() => "stralias";
+        public override string[] FunctionNames() => new string[] { "stralias" };
 
         public override void HandleFunctionNode(TreeWalker walker, FunctionNode function)
         {
@@ -216,7 +219,7 @@ namespace PonscripterParser
 
     class NumAliasHandler : FunctionHandler
     {
-        public override string FunctionName() => "numalias";
+        public override string[] FunctionNames() => new string[] { "numalias" };
 
         public override void HandleFunctionNode(TreeWalker walker, FunctionNode function)
         {
@@ -226,7 +229,7 @@ namespace PonscripterParser
 
     class DefSubHandler : FunctionHandler
     {
-        public override string FunctionName() => "defsub";
+        public override string[] FunctionNames() => new string[] { "defsub" };
 
         public override void HandleFunctionNode(TreeWalker walker, FunctionNode function)
         {
@@ -237,7 +240,7 @@ namespace PonscripterParser
 
     class GoSubHandler : FunctionHandler
     {
-        public override string FunctionName() => "gosub";
+        public override string[] FunctionNames() => new string[] { "gosub" };
 
         public override void HandleFunctionNode(TreeWalker walker, FunctionNode function)
         {
@@ -253,7 +256,7 @@ namespace PonscripterParser
         //TODO: Renpy supports local label names (prefix with '.'), however this
         // may break some ponscripter scripts which (erroneously?) jumpf through subroutines
         // For now, leave as global labels.
-        public override string FunctionName() => "jumpf";
+        public override string[] FunctionNames() => new string[] { "jumpf" };
 
         public override void HandleFunctionNode(TreeWalker walker, FunctionNode function)
         {
@@ -275,7 +278,7 @@ namespace PonscripterParser
 
     class GetParamHandler : FunctionHandler
     {
-        public override string FunctionName() => "getparam";
+        public override string[] FunctionNames() => new string[] { "getparam" };
 
         public override void HandleFunctionNode(TreeWalker walker, FunctionNode function)
         {
@@ -289,7 +292,7 @@ namespace PonscripterParser
 
     class GotoHandler : FunctionHandler
     {
-        public override string FunctionName() => "goto";
+        public override string[] FunctionNames() => new string[] { "goto" };
 
         public override void HandleFunctionNode(TreeWalker walker, FunctionNode function)
         {
@@ -302,7 +305,7 @@ namespace PonscripterParser
 
     class DimHandler : FunctionHandler
     {
-        public override string FunctionName() => "dim";
+        public override string[] FunctionNames() => new string[] { "dim" };
 
         public override void HandleFunctionNode(TreeWalker walker, FunctionNode function)
         {
@@ -329,7 +332,7 @@ namespace PonscripterParser
 
     class NextHandler : FunctionHandler
     {
-        public override string FunctionName() => "next";
+        public override string[] FunctionNames() => new string[] { "next" };
 
         public override void HandleFunctionNode(TreeWalker walker, FunctionNode function)
         {
@@ -347,7 +350,7 @@ namespace PonscripterParser
 
     class LspHandler : FunctionHandler
     {
-        public override string FunctionName() => "lsp";
+        public override string[] FunctionNames() => new string[] { "lsp" };
 
         public override void HandleFunctionNode(TreeWalker walker, FunctionNode function)
         {
@@ -425,25 +428,41 @@ namespace PonscripterParser
         }*/
     }
 
-    class SpbtnHandler : FunctionHandler
+    // Handles spbtn and exbtn command
+    class SpbtnExbtnHandler : FunctionHandler
     {
         // Defines a button from a sprite which has been previously loaded with 'lsp' or similar
         // The buttons are cleared when 'csp' or similar is used to clear the associated sprite.
-        public override string FunctionName() => "spbtn";
+        public override string[] FunctionNames() => new string[] { "spbtn", "exbtn" };
 
         public override void HandleFunctionNode(TreeWalker walker, FunctionNode function)
         {
-            List<Node> arguments = function.GetArguments(2);
-            string spriteNumber = walker.TranslateExpression(arguments[0]);
-            string buttonNumber = walker.TranslateExpression(arguments[1]);
+            string spriteNumber;
+            string buttonNumber;
+            string sprite_control;
+
+            if(function.functionName == "spbtn")
+            {
+                List<Node> arguments = function.GetArguments(2);
+                spriteNumber = walker.TranslateExpression(arguments[0]);
+                buttonNumber = walker.TranslateExpression(arguments[1]);
+            }
+            else
+            {
+                List<Node> arguments = function.GetArguments(3);
+                spriteNumber = walker.TranslateExpression(arguments[0]);
+                buttonNumber = walker.TranslateExpression(arguments[1]);
+                sprite_control = walker.TranslateExpression(arguments[2]);
+            }
 
             walker.scriptBuilder.EmitPython($"pons_spbtn({spriteNumber}, {buttonNumber})");
         }
     }
 
+
     class Btnwait2Handler : FunctionHandler
     {
-        public override string FunctionName() => "btnwait2";
+        public override string[] FunctionNames() => new string[] { "btnwait2" };
 
         public override void HandleFunctionNode(TreeWalker walker, FunctionNode function)
         {
@@ -462,7 +481,10 @@ namespace PonscripterParser
 
     class BtndefHandler : FunctionHandler
     {
-        //Note about btndef
+        //Note about btndef:
+        //
+        //I'm not sure if btndef is used "properly" in modern ponscripter scripts - it appears mainly to be used to clear the previously registered buttons
+        //
         //Btndef registers which image will be used for future `btn` calls
         //See this page for an example: http://binaryheaven.ivory.ne.jp/o_show/nscripter/tyuu/03.htm
         //
@@ -471,10 +493,9 @@ namespace PonscripterParser
         //btn 2,10,70,50,50,50,0
         //btn 3,10,130,50,50,100,0
         //
-        //I'm not sure if it's used in modern ponscripter scripts
 
         //this isn't properly implemented - calling this just clears the previously bound buttons
-        public override string FunctionName() => "btndef";
+        public override string[] FunctionNames() => new string[] { "btndef" };
 
         public override void HandleFunctionNode(TreeWalker walker, FunctionNode function)
         {
@@ -705,7 +726,7 @@ namespace PonscripterParser
             this.functionLookup.RegisterSystemFunction(new DimHandler());
             this.functionLookup.RegisterSystemFunction(new NextHandler());
             this.functionLookup.RegisterSystemFunction(new LspHandler());
-            this.functionLookup.RegisterSystemFunction(new SpbtnHandler());
+            this.functionLookup.RegisterSystemFunction(new SpbtnExbtnHandler());
             this.functionLookup.RegisterSystemFunction(new Btnwait2Handler());
             this.functionLookup.RegisterSystemFunction(new BtndefHandler());
         }
