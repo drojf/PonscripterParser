@@ -148,7 +148,11 @@ namespace PonscripterParser
 
             // Write to Body Region
             //scriptBuilder.SetBodyRegion();
+            foreach (string line in cbs.program)
+            {
 
+                ProcessLine(line, subroutineDatabase, scriptBuilder, walker, isProgramBlock: true);
+            }
 
             string savePath = @"C:\drojf\large_projects\ponscripter_parser\renpy\ponscripty\game\script.rpy";
             scriptBuilder.SaveFile("prelude.rpy", savePath);
