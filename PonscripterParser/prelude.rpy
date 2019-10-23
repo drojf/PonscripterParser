@@ -120,7 +120,7 @@ init python:
             self.set([singularKey], value)
 
     class PonscripterButton:
-        def __init__(id, x, y):
+        def __init__(self, id, x, y):
             self.text = "button"
             self.image_path = None #use later for button image?
             self.id = id;
@@ -312,7 +312,7 @@ init python:
 
 screen MultiButton():
     vbox: #fixed: #Change to fixed when proper button x y implemented 
-        for but in ponscripter_buttons:
+        for but_number, but in ponscripter_buttons.items():
             textbutton str(but.text):
                 action Return(but.id)
                 #xpos but.x #UNCOMMENT WHEN PROPER BUTTON X Y IPMLEMENTED
