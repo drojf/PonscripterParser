@@ -3,6 +3,16 @@
 init python:
     import os
     import re
+    
+    class Log:
+        def __init__(self):
+            self.file = open(os.path.join(config.gamedir, 'custom_log.txt'), 'w')
+
+        def info(self, s):
+            self.file.write('{}\n'.format(s))
+            self.file.flush()
+    
+    log = Log()
 
     # Used for stralias and numalias
     class VariableArray:
@@ -168,6 +178,8 @@ init python:
         #TODO: use tags
         tags = None
         filename = filename_with_tags
+
+        log.info("Loading file: '{}'".format(filename))
 
         if filename[0] == ':':
             semi_pos = filename.find(';')
