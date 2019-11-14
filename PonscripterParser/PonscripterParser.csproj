@@ -42,6 +42,7 @@
     <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="PonsToVM\POnscripterVirtualMachine.cs" />
     <Compile Include="Regexes.cs" />
     <Compile Include="Lexer.cs" />
     <Compile Include="CustomExceptions.cs" />
@@ -53,6 +54,9 @@
     <Compile Include="Log.cs" />
     <Compile Include="TreeWalker.cs" />
     <Compile Include="UserFunctionScanner.cs" />
+    <Compile Include="PonsToVM\ScriptPositionManager.cs" />
+    <Compile Include="VirtualMachine\VarManager.cs" />
+    <Compile Include="VirtualMachine\Machine.cs" />
   </ItemGroup>
   <ItemGroup>
     <None Include="App.config" />
