@@ -4,6 +4,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Text;
+using System.Text.RegularExpressions;
 
 namespace PonscripterParser
 {
@@ -44,6 +45,7 @@ namespace PonscripterParser
         static bool in_ignore_region;
         static string prev_line = "";
 
+        static Regex hexColorAnywhereRegex = new Regex(@"#[0-9abcdef]{6}", RegexOptions.IgnoreCase);
 
         //foreach (Lexeme lexeme in test.lexemes)
         //{
@@ -51,9 +53,6 @@ namespace PonscripterParser
         //}
 
         //simpleWriter.Append($"\n");
-
-        //TODO: process english lines using a simple method (if line contains langen and "^") and then compare - check if any lines were missed
-
 
         static bool LineIsEmptyText(LexerTest test)
         {
@@ -76,9 +75,11 @@ namespace PonscripterParser
                 // Only allow dialogue if it's not a special text command
                 if (lexeme.type == LexemeType.DIALOGUE)
                 {
+                    string dialogueNoHexColor = hexColorAnywhereRegex.Replace(lexeme.text.Trim(), "");
+
                     // Don't count exclamation commands as it doesn't emit any characters
-                    System.Text.RegularExpressions.Match result = Regexes.exclamationTextCommand.Match(lexeme.text.Trim());
-                    if (!result.Success || result.Length != lexeme.text.Length)
+                    System.Text.RegularExpressions.Match result = Regexes.exclamationTextCommand.Match(dialogueNoHexColor.Trim());
+                    if (!result.Success || result.Length != dialogueNoHexColor.Length)
                     {
                         return false;
                     }
@@ -88,7 +89,7 @@ namespace PonscripterParser
             return true;
         }
 
-        static void ProcessLine(string line, SubroutineDatabase subroutineDatabase, RenpyScriptBuilder scriptBuilder, TreeWalker walker, StringBuilder simpleWriter, HashSet<string> modified_lines, bool isProgramBlock)
+        static void ProcessLine(string line, SubroutineDatabase subroutineDatabase, RenpyScriptBuilder scriptBuilder, TreeWalker walker, StringBuilder simpleWriter, StringBuilder debugWriter, HashSet<string> modified_lines, bool isProgramBlock)
         {
             //            Console.WriteLine(line);
             //scriptBuilder.AppendComment(line);
@@ -104,10 +105,26 @@ namespace PonscripterParser
             simpleWriter.Append($"\n");
             */
 
+            bool lineIsEnglish = line.StartsWith("langen");
+            bool probablyLineIsEmpty = lineIsEnglish && !line.Contains("^");
 
             bool lineIsEmpty = LineIsEmptyText(test);
 
-            if(lineIsEmpty)
+
+            if(lineIsEnglish)
+            {
+                if(probablyLineIsEmpty && !lineIsEmpty)
+                {
+                    debugWriter.AppendLine($"Line [{line}] is probably empty but was detected non-empty");
+                }
+                else if(!probablyLineIsEmpty && lineIsEmpty)
+                {
+                    debugWriter.AppendLine($"Line [{line}] is probably NOT empty but was detected as empty");
+                }
+            }
+
+
+            if (lineIsEmpty)
             {
                 modified_lines.Add(line);
                 if (!in_ignore_region)
@@ -234,18 +251,19 @@ namespace PonscripterParser
             CodeBlocks cbs = ReadSegments(lines);
 
             StringBuilder simpleWriter = new StringBuilder();
+            StringBuilder debugBuilder = new StringBuilder();
             HashSet<string> modified_lines = new HashSet<string>();
 
             // Write to Init Region
             //scriptBuilder.SetBodyRegion();
             foreach (string line in cbs.header)
             {
-                ProcessLine(line, subroutineDatabase, scriptBuilder, walker, simpleWriter, modified_lines, isProgramBlock: true);
+                ProcessLine(line, subroutineDatabase, scriptBuilder, walker, simpleWriter, debugBuilder, modified_lines, isProgramBlock: true);
             }
 
             foreach (string line in cbs.definition)
             {
-                ProcessLine(line, subroutineDatabase, scriptBuilder, walker, simpleWriter, modified_lines, isProgramBlock: true);
+                ProcessLine(line, subroutineDatabase, scriptBuilder, walker, simpleWriter, debugBuilder, modified_lines, isProgramBlock: true);
             }
 
             // Write to Body Region
@@ -253,7 +271,7 @@ namespace PonscripterParser
             foreach (string line in cbs.program)
             {
 
-                ProcessLine(line, subroutineDatabase, scriptBuilder, walker, simpleWriter, modified_lines, isProgramBlock: true);
+                ProcessLine(line, subroutineDatabase, scriptBuilder, walker, simpleWriter, debugBuilder, modified_lines, isProgramBlock: true);
             }
 
             string debugPath = @"C:\drojf\large_projects\ponscripter_parser\renpy\ponscripty\game\debug.txt";
@@ -275,6 +293,7 @@ namespace PonscripterParser
                 writer.WriteLine("\n\n");
 
                 writer.WriteLine("Possibly Missed lines:");
+                writer.Write(debugBuilder.ToString());
             }
 
 
