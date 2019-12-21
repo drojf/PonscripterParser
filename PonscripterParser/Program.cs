@@ -52,6 +52,8 @@ namespace PonscripterParser
 
         //simpleWriter.Append($"\n");
 
+        //TODO: process english lines using a simple method (if line contains langen and "^") and then compare - check if any lines were missed
+
 
         static bool LineIsEmptyText(LexerTest test)
         {
@@ -86,7 +88,7 @@ namespace PonscripterParser
             return true;
         }
 
-        static void ProcessLine(string line, SubroutineDatabase subroutineDatabase, RenpyScriptBuilder scriptBuilder, TreeWalker walker, StringBuilder simpleWriter, bool isProgramBlock)
+        static void ProcessLine(string line, SubroutineDatabase subroutineDatabase, RenpyScriptBuilder scriptBuilder, TreeWalker walker, StringBuilder simpleWriter, HashSet<string> modified_lines, bool isProgramBlock)
         {
             //            Console.WriteLine(line);
             //scriptBuilder.AppendComment(line);
@@ -107,7 +109,8 @@ namespace PonscripterParser
 
             if(lineIsEmpty)
             {
-                if(!in_ignore_region)
+                modified_lines.Add(line);
+                if (!in_ignore_region)
                 {
                     // Remove dupe lines
                     const string line_to_emit = "mov %disable_adv_clear, 1";
@@ -231,17 +234,18 @@ namespace PonscripterParser
             CodeBlocks cbs = ReadSegments(lines);
 
             StringBuilder simpleWriter = new StringBuilder();
+            HashSet<string> modified_lines = new HashSet<string>();
 
             // Write to Init Region
             //scriptBuilder.SetBodyRegion();
             foreach (string line in cbs.header)
             {
-                ProcessLine(line, subroutineDatabase, scriptBuilder, walker, simpleWriter, isProgramBlock: true);
+                ProcessLine(line, subroutineDatabase, scriptBuilder, walker, simpleWriter, modified_lines, isProgramBlock: true);
             }
 
             foreach (string line in cbs.definition)
             {
-                ProcessLine(line, subroutineDatabase, scriptBuilder, walker, simpleWriter, isProgramBlock: true);
+                ProcessLine(line, subroutineDatabase, scriptBuilder, walker, simpleWriter, modified_lines, isProgramBlock: true);
             }
 
             // Write to Body Region
@@ -249,16 +253,31 @@ namespace PonscripterParser
             foreach (string line in cbs.program)
             {
 
-                ProcessLine(line, subroutineDatabase, scriptBuilder, walker, simpleWriter, isProgramBlock: true);
+                ProcessLine(line, subroutineDatabase, scriptBuilder, walker, simpleWriter, modified_lines, isProgramBlock: true);
             }
 
+            string debugPath = @"C:\drojf\large_projects\ponscripter_parser\renpy\ponscripty\game\debug.txt";
             string savePath = @"C:\drojf\large_projects\ponscripter_parser\renpy\ponscripty\game\script.rpy";
             scriptBuilder.SaveFile("prelude.rpy", savePath);
 
             using (StreamWriter writer = File.CreateText(savePath))
             {
                 writer.Write(simpleWriter.ToString());
-            }          
+            }
+
+            using (StreamWriter writer = File.CreateText(debugPath))
+            {
+                writer.WriteLine("Unique Modified Lines:");
+                foreach (string s in modified_lines)
+                {
+                    writer.WriteLine(s.ToString());
+                }
+                writer.WriteLine("\n\n");
+
+                writer.WriteLine("Possibly Missed lines:");
+            }
+
+
         }
 
         static void Main(string[] args)
