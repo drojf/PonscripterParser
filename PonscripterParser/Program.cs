@@ -3,6 +3,7 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Text;
 using System.Text.RegularExpressions;
 
@@ -44,6 +45,7 @@ namespace PonscripterParser
     {
         static bool in_ignore_region;
         static string prev_line = "";
+        static bool reached_code_section;
 
         static Regex hexColorAnywhereRegex = new Regex(@"#[0-9abcdef]{6}", RegexOptions.IgnoreCase);
 
@@ -54,64 +56,135 @@ namespace PonscripterParser
 
         //simpleWriter.Append($"\n");
 
-        static bool LineIsEmptyText(LexerTest test)
+        static bool LineIsEmptyText(List<Lexeme> lexemes)
         {
             // line must have at least one lexeme
-            if (test.lexemes.Count <= 0)
+            if (lexemes.Count <= 0)
             {
                 return false;
             }
 
             // Line must have langjp or langen as first item
-            string firstLexeme = test.lexemes[0].text.Trim().ToLower();
+            string firstLexeme = lexemes[0].text.Trim().ToLower();
             if (firstLexeme != "langjp" && firstLexeme != "langen")
             {
                 return false;
             }
 
             // If any lexeme is Dialogue, skip the node
-            foreach (Lexeme lexeme in test.lexemes)
+            foreach (Lexeme lexeme in lexemes)
             {
-                // Only allow dialogue if it's not a special text command
-                if (lexeme.type == LexemeType.DIALOGUE)
+                switch (lexeme.type)
                 {
-                    string dialogueNoHexColor = hexColorAnywhereRegex.Replace(lexeme.text.Trim(), "");
-
-                    // Don't count exclamation commands as it doesn't emit any characters
-                    System.Text.RegularExpressions.Match result = Regexes.exclamationTextCommand.Match(dialogueNoHexColor.Trim());
-                    if (!result.Success || result.Length != dialogueNoHexColor.Length)
-                    {
+                    // Any numeric or string references at the top level will be printed out, therefore line is not empty
+                    case LexemeType.NUMERIC_REFERENCE:
+                    case LexemeType.STRING_REFERENCE:
                         return false;
-                    }
+
+                    // Only allow dialogue if it's not a special text command
+                    case LexemeType.DIALOGUE:
+                        string dialogueNoHexColor = hexColorAnywhereRegex.Replace(lexeme.text.Trim(), "");
+
+                        // Don't count exclamation commands as it doesn't emit any characters
+                        System.Text.RegularExpressions.Match result = Regexes.exclamationTextCommand.Match(dialogueNoHexColor.Trim());
+                        if (!result.Success || result.Length != dialogueNoHexColor.Length)
+                        {
+                            return false;
+                        }
+                        break;
                 }
             }
 
             return true;
         }
 
-        static void ProcessLine(string line, SubroutineDatabase subroutineDatabase, RenpyScriptBuilder scriptBuilder, TreeWalker walker, StringBuilder simpleWriter, StringBuilder debugWriter, HashSet<string> modified_lines, bool isProgramBlock)
+        static void AppendSLToForwardSlash(string line, SubroutineDatabase subroutineDatabase, RenpyScriptBuilder scriptBuilder, TreeWalker walker, StringBuilder simpleWriter, StringBuilder debugWriter, HashSet<string> modified_lines, bool isProgramBlock)
         {
-            //            Console.WriteLine(line);
-            //scriptBuilder.AppendComment(line);
+            if (line == "*ep1_scroll                   ;スクロール実行本体")
+            {
+                reached_code_section = true;
+            }
+            if (reached_code_section)
+            {
+                simpleWriter.AppendLine(line);
+                return;
+            }
 
             LexerTest test = new LexerTest(line, subroutineDatabase);
             test.LexSection(isProgramBlock);
 
-            /*foreach (Lexeme lexeme in test.lexemes)
+            Parser p = new Parser(test.lexemes, subroutineDatabase);
+            List<Node> nodes = p.Parse();
+
+            List<Lexeme> lexemes = nodes.Select(x => x.GetLexeme()).ToList();
+
+            simpleWriter.AppendLine(line);
+
+            //Check last lexeme for a "/"
+            bool lastIsSlash = false;
+            if(lexemes.Count > 0)
             {
-                simpleWriter.Append($"[{lexeme}]");
+                Lexeme lastLexeme = lexemes[lexemes.Count - 1];
+                if(lastLexeme.type == LexemeType.OPERATOR && lastLexeme.text.Trim() == "/")
+                {
+                    lastIsSlash = true;
+                }
             }
 
-            simpleWriter.Append($"\n");
-            */
+            //Check second last lexeme for a "@"
+            bool secondLastIsAt = false;
+            if(lexemes.Count > 1)
+            {
+                Lexeme secondLastLexeme = lexemes[lexemes.Count - 2];
+                if (secondLastLexeme.type == LexemeType.AT_SYMBOL)
+                {
+                    secondLastIsAt = true;
+                }
+            }
+
+            // Only insert a "sl" if there was no "@" before the slash, as an "@" already forces a clickwait
+            if (lastIsSlash && !secondLastIsAt)
+            {
+                simpleWriter.AppendLine($"sl");
+            }
+
+            foreach (Lexeme lexeme in lexemes)
+            {
+                debugWriter.Append($"[{lexeme}]");
+            }
+            debugWriter.Append($"\n");
+        }
+
+        static void ProcessLine(string line, SubroutineDatabase subroutineDatabase, RenpyScriptBuilder scriptBuilder, TreeWalker walker, StringBuilder simpleWriter, StringBuilder debugWriter, HashSet<string> modified_lines, bool isProgramBlock)
+        {
+            //            Console.WriteLine(line);
+            //scriptBuilder.AppendComment(line);
+            if (line == "*ep1_scroll                   ;スクロール実行本体")
+            {
+                reached_code_section = true;
+            }
+            if (reached_code_section)
+            {
+                simpleWriter.AppendLine(line);
+                return;
+            }
+
+            LexerTest test = new LexerTest(line, subroutineDatabase);
+            test.LexSection(isProgramBlock);
+
+            Parser p = new Parser(test.lexemes, subroutineDatabase);
+            List<Node> nodes = p.Parse();
+
+            List<Lexeme> lexemes = nodes.Select(x => x.GetLexeme()).ToList();
+
 
             bool lineIsEnglish = line.StartsWith("langen");
             bool probablyLineIsEmpty = lineIsEnglish && !line.Contains("^");
 
-            bool lineIsEmpty = LineIsEmptyText(test);
+            bool lineIsEmpty = LineIsEmptyText(lexemes);
 
 
-            if(lineIsEnglish)
+            if (lineIsEnglish)
             {
                 if(probablyLineIsEmpty && !lineIsEmpty)
                 {
@@ -162,8 +235,6 @@ namespace PonscripterParser
 
 
             // Skip parsing for now as we don't need it
-            //Parser p = new Parser(test.lexemes, subroutineDatabase);
-            //List<Node> nodes = p.Parse();
 
 
             // For now, just parse, don't walk
@@ -258,12 +329,12 @@ namespace PonscripterParser
             //scriptBuilder.SetBodyRegion();
             foreach (string line in cbs.header)
             {
-                ProcessLine(line, subroutineDatabase, scriptBuilder, walker, simpleWriter, debugBuilder, modified_lines, isProgramBlock: true);
+                AppendSLToForwardSlash(line, subroutineDatabase, scriptBuilder, walker, simpleWriter, debugBuilder, modified_lines, isProgramBlock: true);
             }
 
             foreach (string line in cbs.definition)
             {
-                ProcessLine(line, subroutineDatabase, scriptBuilder, walker, simpleWriter, debugBuilder, modified_lines, isProgramBlock: true);
+                AppendSLToForwardSlash(line, subroutineDatabase, scriptBuilder, walker, simpleWriter, debugBuilder, modified_lines, isProgramBlock: true);
             }
 
             // Write to Body Region
@@ -271,7 +342,7 @@ namespace PonscripterParser
             foreach (string line in cbs.program)
             {
 
-                ProcessLine(line, subroutineDatabase, scriptBuilder, walker, simpleWriter, debugBuilder, modified_lines, isProgramBlock: true);
+                AppendSLToForwardSlash(line, subroutineDatabase, scriptBuilder, walker, simpleWriter, debugBuilder, modified_lines, isProgramBlock: true);
             }
 
             string debugPath = @"C:\drojf\large_projects\ponscripter_parser\renpy\ponscripty\game\debug.txt";
