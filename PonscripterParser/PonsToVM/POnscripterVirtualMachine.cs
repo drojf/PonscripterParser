@@ -4,6 +4,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
+#if false
 namespace PonscripterParser.PonsToVM
 {
     interface GameDisplayInterface
@@ -711,3 +712,4 @@ namespace PonscripterParser.PonsToVM
 
     }
 }
+#endif

@@ -22,5 +22,11 @@ namespace PonscripterParser
         {
             Console.WriteLine(s);
         }
+
+        public static void Warning(string s)
+        {
+            Console.WriteLine(s);
+        }
+
     }
 }

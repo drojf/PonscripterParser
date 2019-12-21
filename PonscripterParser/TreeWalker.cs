@@ -556,7 +556,7 @@ namespace PonscripterParser
             using (StreamWriter writer = File.CreateText(outputPath))
             {
                 //write the prelude
-                using(StreamReader reader = File.OpenText(preludePath))
+                using (StreamReader reader = File.OpenText(preludePath))
                 {
                     writer.Write(reader.ReadToEnd());
                 }
@@ -588,7 +588,7 @@ namespace PonscripterParser
         public void ModifyIndentTemporarily(int relativeChange)
         {
             temporaryIndent += relativeChange;
-            if(temporaryIndent < 0)
+            if (temporaryIndent < 0)
             {
                 throw new Exception("Temporary Indent became less than 0");
             }
@@ -628,7 +628,7 @@ namespace PonscripterParser
         {
             int? indent_override = 0;
 
-            if(isJumpfLabel || permanentIndent != 0 || temporaryIndent != 0)
+            if (isJumpfLabel || permanentIndent != 0 || temporaryIndent != 0)
             {
                 indent_override = null;
             }
@@ -639,6 +639,7 @@ namespace PonscripterParser
 
         private void PreEmitHook(bool nextIsPython)
         {
+#if false
             if(ponscripterDefineSectionMode)
             {
                 if (nextIsPython && !lastStatementWasPython)
@@ -657,6 +658,11 @@ namespace PonscripterParser
 
                 lastStatementWasPython = nextIsPython;
             }
+#endif
+        }
+
+        public void Append(string line) {
+            current.Append(line);
         }
 
         private void AppendLine(string line, LineType lineType, int? indent_override=null)

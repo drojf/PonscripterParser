@@ -74,6 +74,9 @@ namespace PonscripterParser
         }
     }
 
+    /// <summary>
+    /// This node represents a pre-defined or user-defined Ponscripter function call
+    /// </summary>
     class FunctionNode : Node
     {
         public string functionName;

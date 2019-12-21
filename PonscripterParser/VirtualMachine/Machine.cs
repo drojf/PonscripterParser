@@ -6,6 +6,7 @@ using System.Threading.Tasks;
 
 namespace PonscripterParser.VirtualMachine
 {
+#if false
     class POnscripterVirtualMachine
     {
         //Ponscripter numeric and string variable "arrays" 
@@ -53,4 +54,5 @@ namespace PonscripterParser.VirtualMachine
             userFunctionLookup.Add(functionName, lineNumber);
         }
     }
+#endif
 }

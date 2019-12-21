@@ -3,6 +3,7 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Text;
 
 namespace PonscripterParser
 {
@@ -40,23 +41,118 @@ namespace PonscripterParser
 
     class Program
     {
-        static void ProcessLine(string line, SubroutineDatabase subroutineDatabase, RenpyScriptBuilder scriptBuilder, TreeWalker walker, bool isProgramBlock)
+        static bool in_ignore_region;
+        static string prev_line = "";
+
+
+        //foreach (Lexeme lexeme in test.lexemes)
+        //{
+        //    simpleWriter.Append($"[{lexeme.text}]");
+        //}
+
+        //simpleWriter.Append($"\n");
+
+
+        static bool LineIsEmptyText(LexerTest test)
         {
-            Console.WriteLine(line);
-            scriptBuilder.AppendComment(line);
+            // line must have at least one lexeme
+            if (test.lexemes.Count <= 0)
+            {
+                return false;
+            }
+
+            // Line must have langjp or langen as first item
+            string firstLexeme = test.lexemes[0].text.Trim().ToLower();
+            if (firstLexeme != "langjp" && firstLexeme != "langen")
+            {
+                return false;
+            }
+
+            // If any lexeme is Dialogue, skip the node
+            foreach (Lexeme lexeme in test.lexemes)
+            {
+                // Only allow dialogue if it's not a special text command
+                if (lexeme.type == LexemeType.DIALOGUE)
+                {
+                    // Don't count exclamation commands as it doesn't emit any characters
+                    System.Text.RegularExpressions.Match result = Regexes.exclamationTextCommand.Match(lexeme.text.Trim());
+                    if (!result.Success || result.Length != lexeme.text.Length)
+                    {
+                        return false;
+                    }
+                }
+            }
+
+            return true;
+        }
+
+        static void ProcessLine(string line, SubroutineDatabase subroutineDatabase, RenpyScriptBuilder scriptBuilder, TreeWalker walker, StringBuilder simpleWriter, bool isProgramBlock)
+        {
+            //            Console.WriteLine(line);
+            //scriptBuilder.AppendComment(line);
 
             LexerTest test = new LexerTest(line, subroutineDatabase);
             test.LexSection(isProgramBlock);
 
-            Parser p = new Parser(test.lexemes, subroutineDatabase);
-            List<Node> nodes = p.Parse();
+            /*foreach (Lexeme lexeme in test.lexemes)
+            {
+                simpleWriter.Append($"[{lexeme}]");
+            }
 
-            walker.WalkOneLine(nodes);
+            simpleWriter.Append($"\n");
+            */
+
+
+            bool lineIsEmpty = LineIsEmptyText(test);
+
+            if(lineIsEmpty)
+            {
+                if(!in_ignore_region)
+                {
+                    // Remove dupe lines
+                    const string line_to_emit = "mov %disable_adv_clear, 1";
+                    if(line_to_emit != prev_line)
+                    {
+                        simpleWriter.AppendLine(line_to_emit);
+                    }
+
+                    in_ignore_region = true;
+                }
+            }
+
+            if (!lineIsEmpty)
+            {
+                if (in_ignore_region)
+                {
+                    const string line_to_emit = "mov %disable_adv_clear, 0";
+                    if (line != line_to_emit)
+                    {
+                        simpleWriter.AppendLine(line_to_emit);
+                    }
+
+                    in_ignore_region = false;
+                }
+            }
+
+
+            simpleWriter.AppendLine(line);
+
+
+            prev_line = line;
+
+
+            // Skip parsing for now as we don't need it
+            //Parser p = new Parser(test.lexemes, subroutineDatabase);
+            //List<Node> nodes = p.Parse();
+
+
+            // For now, just parse, don't walk
+            //walker.WalkOneLine(nodes);
         }
 
         static string[] LoadScript()
         {
-            const string script_name = @"C:\drojf\large_projects\umineko\umineko-question\InDevelopment\ManualUpdates\0_short.utf"; //@"example_input.txt";
+            const string script_name = @"C:\drojf\large_projects\umineko\umineko-question\InDevelopment\ManualUpdates\0.utf"; //@"example_input.txt";
             return File.ReadAllLines(script_name);
         }
 
@@ -120,9 +216,9 @@ namespace PonscripterParser
             //from "game" to "*start" is nothing (probably)
 
             //from "*start" to end of file is program
-            int program_size = lines.Length - start_line.Value;
+            int program_size = lines.Length - game_line.Value;
             string[] program = new string[program_size];
-            Array.Copy(lines, start_line.Value, program, 0, program_size);
+            Array.Copy(lines, game_line.Value, program, 0, program_size);
 
             return new CodeBlocks(header, definition, program);
         }
@@ -134,16 +230,18 @@ namespace PonscripterParser
 
             CodeBlocks cbs = ReadSegments(lines);
 
+            StringBuilder simpleWriter = new StringBuilder();
+
             // Write to Init Region
             //scriptBuilder.SetBodyRegion();
             foreach (string line in cbs.header)
             {
-                ProcessLine(line, subroutineDatabase, scriptBuilder, walker, isProgramBlock: true);
+                ProcessLine(line, subroutineDatabase, scriptBuilder, walker, simpleWriter, isProgramBlock: true);
             }
 
             foreach (string line in cbs.definition)
             {
-                ProcessLine(line, subroutineDatabase, scriptBuilder, walker, isProgramBlock: true);
+                ProcessLine(line, subroutineDatabase, scriptBuilder, walker, simpleWriter, isProgramBlock: true);
             }
 
             // Write to Body Region
@@ -151,11 +249,16 @@ namespace PonscripterParser
             foreach (string line in cbs.program)
             {
 
-                ProcessLine(line, subroutineDatabase, scriptBuilder, walker, isProgramBlock: true);
+                ProcessLine(line, subroutineDatabase, scriptBuilder, walker, simpleWriter, isProgramBlock: true);
             }
 
             string savePath = @"C:\drojf\large_projects\ponscripter_parser\renpy\ponscripty\game\script.rpy";
             scriptBuilder.SaveFile("prelude.rpy", savePath);
+
+            using (StreamWriter writer = File.CreateText(savePath))
+            {
+                writer.Write(simpleWriter.ToString());
+            }          
         }
 
         static void Main(string[] args)
