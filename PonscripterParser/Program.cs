@@ -120,9 +120,39 @@ namespace PonscripterParser
 
                 simpleWriter.AppendLine(line);
 
+                bool folowed_by_disable_adv_clear_clickwait = false;
+                bool got_disable_adv_clear = false;
+                for (int i = 1; i < 100; i++)
+                {
+                    int search_line = line_no + i;
+                    if (search_line > lines.Length)
+                    {
+                        break;
+                    }
+
+                    if(lines[search_line].Trim() == "mov %disable_adv_clear, 1")
+                    {
+                        got_disable_adv_clear = true;
+                    }
+                    else if(lines[search_line].Trim() == "mov %disable_adv_clear, 0")
+                    {
+                        got_disable_adv_clear = false;
+                    }
+
+                    if(lines[search_line].ToLower().Contains("langen"))
+                    {
+                        if (got_disable_adv_clear && lines[search_line].ToLower().Contains("\\"))
+                        {
+                            folowed_by_disable_adv_clear_clickwait = true;
+                        }
+
+                        break;
+                    }
+                }
+
                 //Check for a noclear_cw on next few lines
                 bool followed_by_noclear_cw = false;
-                for (int i = 1; i < 10; i++)
+                for (int i = 1; i < 100; i++)
                 {
                     int search_line = line_no + i;
                     if (search_line > lines.Length)
@@ -164,6 +194,7 @@ namespace PonscripterParser
                     if (lastLexeme.type == LexemeType.OPERATOR && lastLexeme.text.Trim() == "/")
                     {
                         lastIsSlash = true;
+                        
                     }
                 }
 
@@ -179,7 +210,7 @@ namespace PonscripterParser
                 }
 
                 // Only insert a "sl" if there was no "@" before the slash, as an "@" already forces a clickwait
-                if (!followed_by_noclear_cw)
+                if (!followed_by_noclear_cw && !folowed_by_disable_adv_clear_clickwait)
                 {
                     if ((lastIsSlash && !secondLastIsAt) || lastIsEmittedDialogue)
                     {
