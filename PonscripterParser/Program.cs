@@ -98,7 +98,106 @@ namespace PonscripterParser
             return true;
         }
 
-        static void AppendSLToForwardSlash(string line, SubroutineDatabase subroutineDatabase, RenpyScriptBuilder scriptBuilder, TreeWalker walker, StringBuilder simpleWriter, StringBuilder debugWriter, HashSet<string> modified_lines, bool isProgramBlock)
+
+        static void AppendSLToForwardSlashAndBlankLine(string[] lines, List<List<Node>> nodes_list, SubroutineDatabase subroutineDatabase, StringBuilder simpleWriter, StringBuilder debugWriter)
+        {
+            for(int line_no = 0; line_no < lines.Length; line_no++)
+            {
+                List<Node> nodes = nodes_list[line_no];
+                string line = lines[line_no];
+
+                if (line == "*ep1_scroll                   ;スクロール実行本体")
+                {
+                    reached_code_section = true;
+                }
+                if (reached_code_section)
+                {
+                    simpleWriter.AppendLine(line);
+                    continue;
+                }
+
+                List<Lexeme> lexemes = nodes.Select(x => x.GetLexeme()).ToList();
+
+                simpleWriter.AppendLine(line);
+
+                //Check for a noclear_cw on next few lines
+                bool followed_by_noclear_cw = false;
+                for (int i = 1; i < 10; i++)
+                {
+                    int search_line = line_no + i;
+                    if (search_line > lines.Length)
+                    {
+                        break;
+                    }
+
+                    if (lines[search_line].ToLower().Contains("noclear_cw"))
+                    {
+                        followed_by_noclear_cw = true;
+                        break;
+                    }
+
+                    if (lines[search_line].ToLower().Contains("langen"))
+                    {
+                        break;
+                    }
+                }
+
+                //Check for no ending at all (dialogue as last token)
+                bool lastIsEmittedDialogue = false;
+                if (lexemes.Count > 0)
+                {
+                    Lexeme lastLexeme = lexemes[lexemes.Count - 1];
+                    if (lastLexeme.type == LexemeType.DIALOGUE)
+                    {
+                        if (!LineIsEmptyText(lexemes))
+                        {
+                            lastIsEmittedDialogue = true;
+                        }
+                    }
+                }
+
+                //Check last lexeme for a "/"
+                bool lastIsSlash = false;
+                if (lexemes.Count > 0)
+                {
+                    Lexeme lastLexeme = lexemes[lexemes.Count - 1];
+                    if (lastLexeme.type == LexemeType.OPERATOR && lastLexeme.text.Trim() == "/")
+                    {
+                        lastIsSlash = true;
+                    }
+                }
+
+                //Check second last lexeme for a "@"
+                bool secondLastIsAt = false;
+                if (lexemes.Count > 1)
+                {
+                    Lexeme secondLastLexeme = lexemes[lexemes.Count - 2];
+                    if (secondLastLexeme.type == LexemeType.AT_SYMBOL)
+                    {
+                        secondLastIsAt = true;
+                    }
+                }
+
+                // Only insert a "sl" if there was no "@" before the slash, as an "@" already forces a clickwait
+                if (!followed_by_noclear_cw)
+                {
+                    if ((lastIsSlash && !secondLastIsAt) || lastIsEmittedDialogue)
+                    {
+                        simpleWriter.AppendLine($"sl");
+                    }
+                }
+
+                foreach (Lexeme lexeme in lexemes)
+                {
+                    debugWriter.Append($"[{lexeme}]");
+                }
+                debugWriter.Append($"\n");
+            }
+        }
+
+
+
+        static void AppendSLToForwardSlashAndBlankLine(string line, SubroutineDatabase subroutineDatabase, RenpyScriptBuilder scriptBuilder, TreeWalker walker, StringBuilder simpleWriter, StringBuilder debugWriter, HashSet<string> modified_lines, bool isProgramBlock)
         {
             if (line == "*ep1_scroll                   ;スクロール実行本体")
             {
@@ -119,6 +218,20 @@ namespace PonscripterParser
             List<Lexeme> lexemes = nodes.Select(x => x.GetLexeme()).ToList();
 
             simpleWriter.AppendLine(line);
+
+            //Check for no ending at all (dialogue as last token)
+            bool lastIsEmittedDialogue = false;
+            if (lexemes.Count > 0)
+            {
+                Lexeme lastLexeme = lexemes[lexemes.Count - 1];
+                if (lastLexeme.type == LexemeType.DIALOGUE)
+                {
+                    if (!LineIsEmptyText(lexemes))
+                    {
+                        lastIsEmittedDialogue = true;
+                    }
+                }
+            }
 
             //Check last lexeme for a "/"
             bool lastIsSlash = false;
@@ -143,7 +256,7 @@ namespace PonscripterParser
             }
 
             // Only insert a "sl" if there was no "@" before the slash, as an "@" already forces a clickwait
-            if (lastIsSlash && !secondLastIsAt)
+            if ((lastIsSlash && !secondLastIsAt) || lastIsEmittedDialogue)
             {
                 simpleWriter.AppendLine($"sl");
             }
@@ -154,6 +267,8 @@ namespace PonscripterParser
             }
             debugWriter.Append($"\n");
         }
+
+    
 
         static void ProcessLine(string line, SubroutineDatabase subroutineDatabase, RenpyScriptBuilder scriptBuilder, TreeWalker walker, StringBuilder simpleWriter, StringBuilder debugWriter, HashSet<string> modified_lines, bool isProgramBlock)
         {
@@ -314,36 +429,44 @@ namespace PonscripterParser
             return new CodeBlocks(header, definition, program);
         }
 
+        static List<List<Node>> ParseSection(string[] lines, SubroutineDatabase subroutineDatabase, bool isProgramBlock)
+        {
+            List<List<Node>> lines_nodes = new List<List<Node>>();
+
+            foreach (string line in lines)
+            {
+                LexerTest test = new LexerTest(line, subroutineDatabase);
+                test.LexSection(isProgramBlock);
+
+                Parser p = new Parser(test.lexemes, subroutineDatabase);
+                List<Node> nodes = p.Parse();
+
+                lines_nodes.Add(nodes);
+            }
+
+            return lines_nodes;
+        }
+
         static void CompileScript(string[] lines, SubroutineDatabase subroutineDatabase)
         {
+#if true
             RenpyScriptBuilder scriptBuilder = new RenpyScriptBuilder();
             TreeWalker walker = new TreeWalker(scriptBuilder);
 
-            CodeBlocks cbs = ReadSegments(lines);
+            //CodeBlocks cbs = ReadSegments(lines);
 
             StringBuilder simpleWriter = new StringBuilder();
             StringBuilder debugBuilder = new StringBuilder();
             HashSet<string> modified_lines = new HashSet<string>();
 
-            // Write to Init Region
-            //scriptBuilder.SetBodyRegion();
-            foreach (string line in cbs.header)
+            List<List<Node>> allLines = ParseSection(lines, subroutineDatabase, isProgramBlock: true);
+
+            if(lines.Length != allLines.Count())
             {
-                AppendSLToForwardSlash(line, subroutineDatabase, scriptBuilder, walker, simpleWriter, debugBuilder, modified_lines, isProgramBlock: true);
+                throw new Exception("lines weren't decoded correctly");
             }
 
-            foreach (string line in cbs.definition)
-            {
-                AppendSLToForwardSlash(line, subroutineDatabase, scriptBuilder, walker, simpleWriter, debugBuilder, modified_lines, isProgramBlock: true);
-            }
-
-            // Write to Body Region
-            //scriptBuilder.SetBodyRegion();
-            foreach (string line in cbs.program)
-            {
-
-                AppendSLToForwardSlash(line, subroutineDatabase, scriptBuilder, walker, simpleWriter, debugBuilder, modified_lines, isProgramBlock: true);
-            }
+            AppendSLToForwardSlashAndBlankLine(lines, allLines, subroutineDatabase, simpleWriter, debugBuilder);
 
             string debugPath = @"C:\drojf\large_projects\ponscripter_parser\renpy\ponscripty\game\debug.txt";
             string savePath = @"C:\drojf\large_projects\ponscripter_parser\renpy\ponscripty\game\script.rpy";
@@ -367,6 +490,59 @@ namespace PonscripterParser
                 writer.Write(debugBuilder.ToString());
             }
 
+#else
+
+            RenpyScriptBuilder scriptBuilder = new RenpyScriptBuilder();
+            TreeWalker walker = new TreeWalker(scriptBuilder);
+
+            CodeBlocks cbs = ReadSegments(lines);
+
+            StringBuilder simpleWriter = new StringBuilder();
+            StringBuilder debugBuilder = new StringBuilder();
+            HashSet<string> modified_lines = new HashSet<string>();
+
+            // Write to Init Region
+            //scriptBuilder.SetBodyRegion();
+            foreach (string line in cbs.header)
+            {
+                AppendSLToForwardSlashAndBlankLine(line, subroutineDatabase, scriptBuilder, walker, simpleWriter, debugBuilder, modified_lines, isProgramBlock: true);
+            }
+
+            foreach (string line in cbs.definition)
+            {
+                AppendSLToForwardSlashAndBlankLine(line, subroutineDatabase, scriptBuilder, walker, simpleWriter, debugBuilder, modified_lines, isProgramBlock: true);
+            }
+
+            // Write to Body Region
+            //scriptBuilder.SetBodyRegion();
+            foreach (string line in cbs.program)
+            {
+
+                AppendSLToForwardSlashAndBlankLine(line, subroutineDatabase, scriptBuilder, walker, simpleWriter, debugBuilder, modified_lines, isProgramBlock: true);
+            }
+
+            string debugPath = @"C:\drojf\large_projects\ponscripter_parser\renpy\ponscripty\game\debug.txt";
+            string savePath = @"C:\drojf\large_projects\ponscripter_parser\renpy\ponscripty\game\script.rpy";
+            scriptBuilder.SaveFile("prelude.rpy", savePath);
+
+            using (StreamWriter writer = File.CreateText(savePath))
+            {
+                writer.Write(simpleWriter.ToString());
+            }
+
+            using (StreamWriter writer = File.CreateText(debugPath))
+            {
+                writer.WriteLine("Unique Modified Lines:");
+                foreach (string s in modified_lines)
+                {
+                    writer.WriteLine(s.ToString());
+                }
+                writer.WriteLine("\n\n");
+
+                writer.WriteLine("Possibly Missed lines:");
+                writer.Write(debugBuilder.ToString());
+            }
+#endif
 
         }
 
