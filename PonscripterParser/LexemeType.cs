@@ -34,6 +34,6 @@ namespace PonscripterParser
         WORD,
         AT_SYMBOL,
         BACK_SLASH,
-        FORWARD_SLASH,
+        //FORWARD_SLASH, //for now, forawrd slashes are emitted as OPERATOR - "\" (as a divide symbol)
     }
 }

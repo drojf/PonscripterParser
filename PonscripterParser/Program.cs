@@ -98,6 +98,69 @@ namespace PonscripterParser
             return true;
         }
 
+        static List<string> debug_ignore_list = new List<string>
+        {
+            "bg ",
+            "ld ",
+            "cl ",
+            "textoff",
+            "fede ",
+        };
+
+        // Insert a text-off before each wait if there is no text currently on screen (was cleared by a \ (backslash))
+        static void WaitTextOffFix(string[] lines, List<List<Node>> nodes_list, SubroutineDatabase subroutineDatabase, StringBuilder simpleWriter, StringBuilder debugWriter)
+        {
+            bool debug_inSlashRegion = false;
+
+            for (int line_no = 0; line_no < lines.Length; line_no++)
+            {
+                List<Node> nodes = nodes_list[line_no];
+                string line = lines[line_no];
+
+                if (line.ToLower().Contains("langen") || line.ToLower().Contains("langjp"))
+                {
+                    debug_inSlashRegion = false;
+                }
+
+                foreach (string ignore_item in debug_ignore_list)
+                {
+                    if (line.ToLower().StartsWith(ignore_item))
+                    {
+                        debug_inSlashRegion = false;
+                    }
+                }
+
+                if (debug_inSlashRegion && line.StartsWith("wait"))
+                {
+                    simpleWriter.AppendLine("textoff");
+                }
+
+                if (line == "*ep1_scroll                   ;スクロール実行本体")
+                {
+                    reached_code_section = true;
+                }
+                if (reached_code_section)
+                {
+                    simpleWriter.AppendLine(line);
+                    continue;
+                }
+
+                List<Lexeme> lexemes = nodes.Select(x => x.GetLexeme()).ToList();
+
+                simpleWriter.AppendLine(line);
+
+                //Check last lexeme for a "\"
+                if (lexemes.Count > 0)
+                {
+                    Lexeme lastLexeme = lexemes[lexemes.Count - 1];
+                    if (lastLexeme.type == LexemeType.BACK_SLASH)
+                    {
+                        debug_inSlashRegion = true;
+                    }
+                }
+            }
+        }
+
 
         static void AppendSLToForwardSlashAndBlankLine(string[] lines, List<List<Node>> nodes_list, SubroutineDatabase subroutineDatabase, StringBuilder simpleWriter, StringBuilder debugWriter)
         {
