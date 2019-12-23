@@ -272,6 +272,26 @@ namespace PonscripterParser
                     }
                 }
 
+                //Check for noclear_cw at end of line(effectively an "@")
+                if (lexemes.Count > 1)
+                {
+                    Lexeme secondLastLexeme = lexemes[lexemes.Count - 2];
+                    if (secondLastLexeme.type == LexemeType.WORD && secondLastLexeme.text == "noclear_cw")
+                    {
+                        secondLastIsAt = true;
+                    }
+                }
+
+                if (lexemes.Count > 2)
+                {
+                    Lexeme thirdLastLexeme = lexemes[lexemes.Count - 3];
+                    if (thirdLastLexeme.type == LexemeType.WORD && thirdLastLexeme.text == "noclear_cw")
+                    {
+                        secondLastIsAt = true;
+                    }
+                }
+
+
                 // Only insert a "sl" if there was no "@" before the slash, as an "@" already forces a clickwait
                 if (!followed_by_noclear_cw && !folowed_by_disable_adv_clear_clickwait)
                 {
