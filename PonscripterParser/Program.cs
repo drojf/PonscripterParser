@@ -98,6 +98,101 @@ namespace PonscripterParser
             return true;
         }
 
+        /***
+         * Also TODO:
+         * 
+         * 
+         * Need to somehow handle cases like these where there is a clickwait after the slash on future lines
+         * Or just detect these and manually fix them?
+         Look for lines where there is a clickwait (@) even before any text has been emitted!
+         1) identify noclear_cw (clickwaits at the start of a line). Mark as `noclear_cw` functions
+         2) don't add a sl if there is a noclear_cw on the next text line.
+        
+            defsub *noclear_cw
+
+            *noclear_cw
+    mov %disable_adv_clear, 1
+@/
+    mov %disable_adv_clear, 0
+return
+
+warehous_i1e,62
+*drojf_test
+advchar "10"
+langjp:dwave_jp 0, but_1e739:「死者ってのは安らかに眠る顔ってやつを拝ませてくれるんじゃねぇのかよ？！@:dwave_jp 0, but_1e740:　顔がねぇんだよ、俺の親父と、霧江さんの顔がねぇんだよッ！！/
+sl
+langen:dwave_eng 0, but_1e739:^"Dead people are supposed to have faces that look like they're sleeping peacefully, right?!^@:dwave_eng 0, but_1e740:^  They've got no faces, my dad and Kyrie-san have no faces!!^/
+sl
+se1 11
+quakey 4,500
+
+langjp@:dwave_jp 0, but_1e741:　どういう顔して死んじまったのか、…それすらもわからねぇんだよ！！@:dwave_jp 0, but_1e742:　何だよ俺はッ！！/
+sl
+langen@:dwave_eng 0, but_1e741:^  I don't even know what kind of faces they were wearing when they died!!^@:dwave_eng 0, but_1e742:^  What's wrong with me?!!^/
+sl
+se1 11
+quakex 3,300
+
+langjp@:dwave_jp 0, but_1e743:　親父たちのことを思い出す時は、このぐちゃぐちゃの化け物みてぇな顔をいつも思い出せってのかよ？！/
+sl
+langen@:dwave_eng 0, but_1e743:^  Will I have to see these smashed, monster-like faces every time I remember them?!^/
+sl
+se1 11
+quakey 3,300
+
+langjp@:dwave_jp 0, but_1e744:　そいつぁ最高だぜ、/
+sl
+langen@:dwave_eng 0, but_1e744:^  That's just great, ^/
+sl
+se1 11
+quakex 4,500
+
+langjp:voicedelay 3810:dwave_jp 0, but_1e745:クソ親父のにやにやとした顔を思い出さなくていいんだからよぉ、/
+sl
+advchar "-1"
+langjp最高だぜ最高だぜ！！/
+sl
+advchar "10"
+langen:voicedelay 3810:dwave_eng 0, but_1e745:^I didn't want to remember that old bastard's smug face anyway!^/
+sl
+advchar "-1"
+langen^Just great, just great!!"^/
+sl
+se1 11
+quakey 4,400
+-----------------
+
+Fix cases like these where an advchar would force the screen to clear when it should insert a clickwait instead:
+
+            advchar "13"
+langjp:dwave_jp 0, mar_4e996:「ひいッ！！！！」
+sl
+;＜真里亞
+advchar "33"
+langjp:dwave_jp 0, sak_4e391:『……………！！！』\
+advchar "13"
+langen:dwave_eng 0, mar_4e996:^"Eeek!!!!"
+sl
+advchar "33"
+langen:dwave_eng 0, sak_4e391:^『......!!!』^\
+
+         * 
+         * */
+
+
+
+
+
+        /** Completed Items
+
+     * Lines like the following should also be affected (no / but just end of line)
+   langen:dwave_eng 0, but_4e148:^"Yeah, that's it...!^@:dwave_eng 0, but_4e149:^  And, that person was...^
+advchar "-1"
+langen:voicedelay 1750:^...^/
+     * 
+     * ------------
+
+         * ***/
         static List<string> debug_ignore_list = new List<string>
         {
             "bg ",
@@ -581,6 +676,7 @@ namespace PonscripterParser
             }
 
             AppendSLToForwardSlashAndBlankLine(lines, allLines, subroutineDatabase, simpleWriter, debugBuilder);
+            //WaitTextOffFix(lines, allLines, subroutineDatabase, simpleWriter, debugBuilder);
 
             string debugPath = @"C:\drojf\large_projects\ponscripter_parser\renpy\ponscripty\game\debug.txt";
             string savePath = @"C:\drojf\large_projects\ponscripter_parser\renpy\ponscripty\game\script.rpy";
