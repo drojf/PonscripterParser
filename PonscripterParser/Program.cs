@@ -565,12 +565,6 @@ langen:voicedelay 1750:^...^/
             //walker.WalkOneLine(nodes);
         }
 
-        static string[] LoadScript()
-        {
-            const string script_name = @"C:\drojf\large_projects\umineko\umineko-question\InDevelopment\ManualUpdates\0.utf"; //@"example_input.txt";
-            return File.ReadAllLines(script_name);
-        }
-
         //TODO: write test which checks that header + "*define" + definition + "game\n*start "+ prorgam = entire script
         static CodeBlocks ReadSegments(string[] lines)
         {
@@ -758,7 +752,19 @@ langen:voicedelay 1750:^...^/
 
         static void Main(string[] args)
         {
-            string[] lines = LoadScript();
+            if (args.Length < 1)
+            {
+                Console.WriteLine("Error: First argument of program must be the script to be parsed");
+                Console.WriteLine("\nI suggest using this script for testing: https://github.com/07th-mod/umineko-question/raw/master/InDevelopment/ManualUpdates/0.utf");
+                Console.WriteLine("\nVisual Studio users can follow these instructions to set program arguments: https://stackoverflow.com/questions/298708/debugging-with-command-line-parameters-in-visual-studio");
+                Console.ReadKey();
+                return;
+            }
+
+            // Read input script
+            string inputFilePath = args[0];
+            Console.WriteLine($"Processing input file [{inputFilePath}]");
+            string[] lines = File.ReadAllLines(inputFilePath);
 
             SubroutineDatabase database = new SubroutineDatabase();
             SubroutineDatabase functionDatabase = UserFunctionScanner.buildInitialUserList(lines, database);
