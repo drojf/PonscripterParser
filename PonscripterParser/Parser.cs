@@ -315,6 +315,7 @@ namespace PonscripterParser
         List<Lexeme> lexemes;
         List<Node> nodes;
         SubroutineDatabase subroutineDatabase;
+        Node lastWord;
 
         public Parser(List<Lexeme> lexemes, SubroutineDatabase subroutineDatabase)
         {
@@ -356,7 +357,8 @@ namespace PonscripterParser
                     return new LabelNode(Pop());
 
                 case LexemeType.WORD:
-                    return HandleWord();
+                    this.lastWord = HandleWord();
+                    return this.lastWord;
 
                 //can't have an array reference/alias at top level I think. Must have a numeric reference.
                 case LexemeType.NUMERIC_REFERENCE:
@@ -394,7 +396,13 @@ namespace PonscripterParser
                     return new TextColorChangeNode(Pop());
             }
 
-            throw GetParsingException("Unexpected lexeme at top level");
+            StringBuilder sb = new StringBuilder($"Unexpected lexeme at top level: '{Peek().text}'");
+            if (this.lastWord != null)
+            {
+                sb.AppendLine($"HINT: Please check the last function '{this.lastWord.GetLexeme().text}' was called with proper comma separated arguments, and the right number of arguments.");
+                sb.AppendLine($"Ponscripter will accept functions separated by spaces, but this parser currently does not support it.");
+            }
+            throw GetParsingException(sb.ToString());
         }
 
         public Node HandleWord()
