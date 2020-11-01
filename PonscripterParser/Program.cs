@@ -239,6 +239,39 @@ langen:voicedelay 1750:^...^/
             return lines_nodes;
         }
 
+        /// <summary>
+        /// Dump top level of nodes for processing in another application or debugging
+        /// NOTE: Since this only dumps the top level, only the first token of each node will be printed
+        /// eg function arguments will have text as their function name, but the arguments won't be present in the output
+        /// TODO: print all info in output, alternatively dump allLines structure as JSON or something
+        /// </summary>
+        /// <param name="lines"></param>
+        /// <param name="subroutineDatabase"></param>
+        /// <param name="savePath"></param>
+        static void DumpTopLevelNodes(string[] lines, SubroutineDatabase subroutineDatabase, string savePath)
+		{
+            RenpyScriptBuilder scriptBuilder = new RenpyScriptBuilder();
+
+            List<List<Node>> allLines = ParseSection(lines, subroutineDatabase, isProgramBlock: true);
+
+            if (lines.Length != allLines.Count())
+            {
+                throw new Exception("lines weren't decoded correctly");
+            }
+
+            using (StreamWriter writer = File.CreateText(savePath))
+            {
+                foreach (var line in allLines)
+                {
+                    foreach (Node n in line)
+                    {
+                        writer.Write($"{n.GetLexeme().type}\0{n.GetLexeme().text}\0");
+                    }
+                    writer.WriteLine();
+                }
+            }
+        }
+
         static void CompileScript(string[] lines, SubroutineDatabase subroutineDatabase)
         {
 #if true
@@ -377,7 +410,17 @@ langen:voicedelay 1750:^...^/
                 Console.WriteLine($"{kvp.Key}: {kvp.Value.hasArguments}");
             }
 
-            CompileScript(lines, database);
+            bool dumpNodes = true;
+            if(dumpNodes)
+			{
+                string savePath = @"C:\drojf\large_projects\umineko\umineko-question\tools\fix_sl\decoded.txt";
+                DumpTopLevelNodes(lines, database, savePath);
+            }
+            else
+			{
+                CompileScript(lines, database);
+            }
+
 
             Console.WriteLine("----------------\nProgram Finished");
             Console.ReadKey();
