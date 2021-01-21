@@ -222,9 +222,9 @@ langen:voicedelay 1750:^...^/
             return new CodeBlocks(header, definition, program);
         }
 
-        static List<List<Node>> ParseSection(string[] lines, SubroutineDatabase subroutineDatabase, bool isProgramBlock)
+        static bool ParseSection(string[] lines, SubroutineDatabase subroutineDatabase, bool isProgramBlock, out List<List<Node>> lines_nodes)
         {
-            List<List<Node>> lines_nodes = new List<List<Node>>();
+            lines_nodes = new List<List<Node>>();
             bool error = false;
 
             using (StreamWriter writer = File.CreateText(errorFileSavePath))
@@ -242,6 +242,9 @@ langen:voicedelay 1750:^...^/
                     }
                     catch (Exception e)
                     {
+                        List<Node> dummyList = new List<Node>();
+                        dummyList.Add(new CommentNode(new Lexeme(LexemeType.COMMENT, "<<<<<< PARSING ERROR >>>>>>")));
+                        lines_nodes.Add(dummyList);
                         // If lexing or parsing a line fails, record this line as having an error, then move on
                         writer.WriteLine();
                         writer.WriteLine($"Error on line [{i+1}]: {line}");
@@ -255,10 +258,10 @@ langen:voicedelay 1750:^...^/
             // If any errors were found during lexing/parsing, notify the user
             if(error)
             {
-                throw new Exception($"One or more errors were found! See file {errorFileSavePath} for details");
+                Console.Error.WriteLine($"ERROR: One or more errors were found! See file {errorFileSavePath} for details");
             }
 
-            return lines_nodes;
+            return error;
         }
 
         /// <summary>
@@ -270,11 +273,11 @@ langen:voicedelay 1750:^...^/
         /// <param name="lines"></param>
         /// <param name="subroutineDatabase"></param>
         /// <param name="savePath"></param>
-        static void DumpTopLevelNodes(string[] lines, SubroutineDatabase subroutineDatabase, string savePath)
-		{
+        static bool DumpTopLevelNodes(string[] lines, SubroutineDatabase subroutineDatabase, string savePath)
+        {
             RenpyScriptBuilder scriptBuilder = new RenpyScriptBuilder();
 
-            List<List<Node>> allLines = ParseSection(lines, subroutineDatabase, isProgramBlock: true);
+            bool error = ParseSection(lines, subroutineDatabase, isProgramBlock: true, out List<List<Node>> allLines);
 
             if (lines.Length != allLines.Count())
             {
@@ -292,9 +295,11 @@ langen:voicedelay 1750:^...^/
                     writer.WriteLine();
                 }
             }
+
+            return error;
         }
 
-        static void CompileScript(string[] lines, SubroutineDatabase subroutineDatabase)
+        static bool CompileScript(string[] lines, SubroutineDatabase subroutineDatabase)
         {
 #if true
             RenpyScriptBuilder scriptBuilder = new RenpyScriptBuilder();
@@ -306,7 +311,11 @@ langen:voicedelay 1750:^...^/
             StringBuilder debugBuilder = new StringBuilder();
             HashSet<string> modified_lines = new HashSet<string>();
 
-            List<List<Node>> allLines = ParseSection(lines, subroutineDatabase, isProgramBlock: true);
+            bool error = ParseSection(lines, subroutineDatabase, isProgramBlock: true, out List<List<Node>> allLines);
+            if(error)
+            {
+                return error;
+            }
 
             if(lines.Length != allLines.Count())
             {
@@ -388,10 +397,10 @@ langen:voicedelay 1750:^...^/
                 writer.Write(debugBuilder.ToString());
             }
 #endif
-
+            return true;
         }
 
-        static void Main(string[] args)
+        static int Main(string[] args)
         {
             if (args.Length < 1)
             {
@@ -399,7 +408,7 @@ langen:voicedelay 1750:^...^/
                 Console.WriteLine("\nI suggest using this script for testing: https://github.com/07th-mod/umineko-question/raw/master/InDevelopment/ManualUpdates/0.utf");
                 Console.WriteLine("\nVisual Studio users can follow these instructions to set program arguments: https://stackoverflow.com/questions/298708/debugging-with-command-line-parameters-in-visual-studio");
                 Console.ReadKey();
-                return;
+                return -1;
             }
 
             // Read input script
@@ -433,15 +442,18 @@ langen:voicedelay 1750:^...^/
             }
 
             bool dumpNodes = true;
-            if(dumpNodes)
-			{
+            bool error = true;
+            if (dumpNodes)
+            {
                 string savePath = @"ponscripter_script_nodes.txt";
-                DumpTopLevelNodes(lines, database, savePath);
+                error = DumpTopLevelNodes(lines, database, savePath);
             }
             else
-			{
-                CompileScript(lines, database);
+            {
+                error = CompileScript(lines, database);
             }
+
+            return error ? -2 : 0;
         }
     }
 }
