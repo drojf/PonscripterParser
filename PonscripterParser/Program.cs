@@ -442,10 +442,6 @@ langen:voicedelay 1750:^...^/
 			{
                 CompileScript(lines, database);
             }
-
-
-            Console.WriteLine("----------------\nProgram Finished");
-            Console.ReadKey();
         }
     }
 }
