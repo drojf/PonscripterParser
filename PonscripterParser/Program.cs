@@ -43,6 +43,7 @@ namespace PonscripterParser
 
     class Program
     {
+        static string errorFileSavePath = "c:/temp/ponscripter_parser_errors.log";
         static Regex hexColorAnywhereRegex = new Regex(@"#[0-9abcdef]{6}", RegexOptions.IgnoreCase);
 
         /***
@@ -224,16 +225,37 @@ langen:voicedelay 1750:^...^/
         static List<List<Node>> ParseSection(string[] lines, SubroutineDatabase subroutineDatabase, bool isProgramBlock)
         {
             List<List<Node>> lines_nodes = new List<List<Node>>();
+            bool error = false;
 
-            foreach (string line in lines)
+            using (StreamWriter writer = File.CreateText(errorFileSavePath))
             {
-                LexerTest test = new LexerTest(line, subroutineDatabase);
-                test.LexSection(isProgramBlock);
+                for (int i = 0; i < lines.Length; i++)
+                {
+                    string line = lines[i];
+                    try
+                    {
+                        LexerTest test = new LexerTest(line, subroutineDatabase);
+                        test.LexSection(isProgramBlock);
+                        Parser p = new Parser(test.lexemes, subroutineDatabase);
+                        List<Node> nodes = p.Parse();
+                        lines_nodes.Add(nodes);
+                    }
+                    catch (Exception e)
+                    {
+                        // If lexing or parsing a line fails, record this line as having an error, then move on
+                        writer.WriteLine();
+                        writer.WriteLine($"Error on line [{i+1}]: {line}");
+                        writer.WriteLine($"Details: {e}");
 
-                Parser p = new Parser(test.lexemes, subroutineDatabase);
-                List<Node> nodes = p.Parse();
+                        error = true;
+                    }
+                }
+            }
 
-                lines_nodes.Add(nodes);
+            // If any errors were found during lexing/parsing, notify the user
+            if(error)
+            {
+                throw new Exception($"One or more errors were found! See file {errorFileSavePath} for details");
             }
 
             return lines_nodes;
@@ -413,7 +435,7 @@ langen:voicedelay 1750:^...^/
             bool dumpNodes = true;
             if(dumpNodes)
 			{
-                string savePath = @"C:\drojf\large_projects\umineko\umineko-question\tools\fix_sl\decoded.txt";
+                string savePath = @"ponscripter_script_nodes.txt";
                 DumpTopLevelNodes(lines, database, savePath);
             }
             else
