@@ -839,8 +839,16 @@ namespace PonscripterParser
 
         private Lexeme Peek(int offset)
         {
-            debug_lastViewedLexeme = this.lexemes[this.pos + offset];
-            return this.lexemes[this.pos + offset];
+            int index = this.pos + offset;
+            if (index < this.lexemes.Count)
+            {
+                debug_lastViewedLexeme = this.lexemes[index];
+                return this.lexemes[index];
+            }
+            else
+            {
+                throw new Exception($"Expected lexeme at {index} but no more lexemes left.");
+            }
         }
 
         private bool IsOperatorOfValue(params string[] allowedOperators)
