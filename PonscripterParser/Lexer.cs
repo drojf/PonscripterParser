@@ -119,7 +119,7 @@ namespace PonscripterParser
 
                 if (!mustBeExpression && 
                     sectionAllowsText && 
-                    (Peek() == '^' || Regexes.exclamationTextCommand.IsMatch(this.line, this.pos) || Peek() > 255))
+                    (Peek() == '^' || Regexes.exclamationTextCommand.IsMatch(this.line, this.pos) || Peek() > 127))
                 {
 
                     //only allow entering text mode if:
@@ -208,7 +208,7 @@ namespace PonscripterParser
                 else
                 {
                     //error
-                    throw GetLexingException("Unexpected character at top level");
+                    throw GetLexingException($"Unexpected character(s)? at top level starting from: [{this.line.Substring(this.pos)}]");
                 }
 
                 mustBeExpression = nextMustBeExpression;
