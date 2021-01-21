@@ -43,7 +43,7 @@ namespace PonscripterParser
 
     class Program
     {
-        static string errorFileSavePath = "c:/temp/ponscripter_parser_errors.log";
+        static string errorFileSavePath = "ponscripter_parser_errors.log";
         static Regex hexColorAnywhereRegex = new Regex(@"#[0-9abcdef]{6}", RegexOptions.IgnoreCase);
 
         /***
